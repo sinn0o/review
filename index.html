@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>맛밥 — 리뷰를 다 읽지 않아도 되는 맛집 탐색</title>
+<meta name="description" content="리뷰 127개, 다 읽으셨나요? 맛밥이 핵심만 골라 보여드릴게요." />
+
+<!-- Pretendard (본문) -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
+
+<!-- Tailwind CDN -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          honey: '#E9A227',
+          'amber-deep': '#C9821A',
+          'honey-soft': '#FBE3B4',
+          cream: '#FFFCF5',
+          ivory: '#F7F0E3',
+          wheat: '#D9C6A5',
+          bark: '#7A6A57',
+          cocoa: '#2E2620',
+          blueberry: '#35566B',
+          'slate-mist': '#B9CAD4',
+        },
+        fontFamily: {
+          title: ['GmarketSans', 'Pretendard', 'sans-serif'],
+          body: ['Pretendard', '-apple-system', 'sans-serif'],
+        },
+        borderRadius: { card: '20px', img: '16px', control: '12px' },
+        boxShadow: {
+          card: '0 2px 8px rgba(74,59,42,0.06)',
+          hover: '0 8px 24px rgba(74,59,42,0.12)',
+        },
+        maxWidth: { content: '1200px' },
+      },
+    },
+  }
+</script>
+
+<!-- Gmarket Sans (제목 전용, 눈누 CDN) -->
+<style>
+  @font-face{
+    font-family:'GmarketSans';
+    font-weight:700;
+    src:url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2001@1.1/GmarketSansBold.woff') format('woff');
+    font-display:swap;
+  }
+  @font-face{
+    font-family:'GmarketSans';
+    font-weight:500;
+    src:url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2001@1.1/GmarketSansMedium.woff') format('woff');
+    font-display:swap;
+  }
+
+  body{ font-family:'Pretendard', -apple-system, sans-serif; word-break: keep-all; }
+
+  /* ===== 스크롤 등장 (fade-up) ===== */
+  .reveal{
+    opacity:0;
+    transform:translateY(24px);
+    transition:opacity .4s ease-out, transform .4s ease-out;
+  }
+  .reveal.is-visible{
+    opacity:1;
+    transform:translateY(0);
+  }
+
+  /* ===== 마퀴 ===== */
+  .marquee-row{
+    position:relative;
+    overflow:hidden;
+  }
+  .marquee-row::before,
+  .marquee-row::after{
+    content:'';
+    position:absolute;
+    top:0; bottom:0;
+    width:96px;
+    z-index:1;
+    pointer-events:none;
+  }
+  .marquee-row::before{ left:0; background:linear-gradient(to right, var(--fade-color, #FFFCF5), transparent); }
+  .marquee-row::after{ right:0; background:linear-gradient(to left, var(--fade-color, #FFFCF5), transparent); }
+
+  .marquee-track{
+    display:flex;
+    width:max-content;
+    gap:16px;
+    animation: marquee-left 40s linear infinite;
+  }
+  .marquee-row-2 .marquee-track{ animation-name: marquee-right; }
+
+  @keyframes marquee-left{ from{ transform:translateX(0); } to{ transform:translateX(-50%); } }
+  @keyframes marquee-right{ from{ transform:translateX(-50%); } to{ transform:translateX(0); } }
+
+  @media (prefers-reduced-motion: reduce){
+    .reveal{ opacity:1 !important; transform:none !important; transition:none !important; }
+    .marquee-track{ animation:none !important; }
+    .restaurant-card, .restaurant-card img{ transition:none !important; }
+  }
+</style>
+</head>
+<body class="bg-cream text-cocoa">
+
+  <!-- ============================================================ -->
+  <!-- 1. 히어로 -->
+  <!-- ============================================================ -->
+  <section class="bg-cream">
+    <div class="max-w-content mx-auto px-4 md:px-6 py-14 md:py-24 grid grid-cols-1 md:grid-cols-2 gap-10 md:gap-16 items-center">
+      <div>
+        <span class="inline-block font-title font-bold text-xl text-cocoa mb-6">맛밥</span>
+        <h1 class="font-title font-bold text-[34px] md:text-[56px] leading-[1.3] tracking-[-0.02em] text-cocoa mb-4">
+          리뷰 127개,<br />다 읽으셨나요?
+        </h1>
+        <p class="text-[15px] md:text-base leading-[1.7] text-bark mb-8">
+          맛밥이 핵심만 골라 보여드릴게요.<br />
+          미리 가볼 곳을 정할 때, 별점 뒤에 숨은 진짜 평판을 빠르게 확인하세요.
+        </p>
+        <a
+          href="#"
+          aria-disabled="true"
+          aria-describedby="cta-note"
+          class="inline-flex items-center gap-2 h-12 md:h-12 px-6 rounded-control bg-honey text-cocoa font-title font-medium text-base shadow-card hover:bg-amber-deep transition-colors duration-200"
+        >
+          시작하기 <span aria-hidden="true">→</span>
+        </a>
+        <p id="cta-note" class="mt-3 text-xs text-bark">곧 열립니다 · 지금은 준비 중이에요</p>
+      </div>
+      <div class="reveal">
+        <img
+          src="https://images.unsplash.com/photo-1414235077428-338989a2e8c0?q=80&w=1200&auto=format&fit=crop"
+          alt="따뜻한 조명 아래 정갈하게 차려진 식탁"
+          class="w-full h-[260px] md:h-[420px] object-cover rounded-img shadow-card"
+          loading="eager"
+        />
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- 2. 인기 맛집 카드 -->
+  <!-- ============================================================ -->
+  <section class="bg-ivory">
+    <div class="max-w-content mx-auto px-4 md:px-6 py-14 md:py-24">
+      <h2 class="reveal font-title font-bold text-[26px] md:text-[34px] tracking-[-0.02em] text-cocoa mb-8 md:mb-10">
+        지금 인기 있는 맛집
+      </h2>
+      <div id="restaurant-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6"></div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- 3. 최근 리뷰 -->
+  <!-- ============================================================ -->
+  <section class="bg-cream" style="--fade-color:#FFFCF5;">
+    <div class="max-w-content mx-auto px-4 md:px-6 pt-14 md:pt-24 pb-8 md:pb-10">
+      <h2 class="reveal font-title font-bold text-[26px] md:text-[34px] tracking-[-0.02em] text-cocoa mb-2">
+        방금 올라온 리뷰
+      </h2>
+      <p class="text-sm text-bark">최근 리뷰가 계속 올라오고 있어요.</p>
+    </div>
+    <div class="pb-14 md:pb-24 flex flex-col gap-4">
+      <div class="marquee-row marquee-row-1">
+        <div id="review-track-1" class="marquee-track" aria-hidden="true"></div>
+      </div>
+      <div class="marquee-row marquee-row-2">
+        <div id="review-track-2" class="marquee-track" aria-hidden="true"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- 4. 서비스 특징 -->
+  <!-- ============================================================ -->
+  <section class="bg-ivory">
+    <div class="max-w-content mx-auto px-4 md:px-6 py-14 md:py-24">
+      <h2 class="reveal font-title font-bold text-[26px] md:text-[34px] tracking-[-0.02em] text-cocoa mb-8 md:mb-10">
+        곧 만나볼 기능
+      </h2>
+      <div id="feature-grid" class="grid grid-cols-1 md:grid-cols-3 gap-6"></div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- 5. 푸터 -->
+  <!-- ============================================================ -->
+  <footer class="bg-cocoa text-cream">
+    <div class="max-w-content mx-auto px-4 md:px-6 py-10 md:py-14 flex flex-col md:flex-row items-center justify-between gap-6">
+      <div class="text-sm text-center md:text-left">
+        <span class="font-title font-bold">맛밥</span>
+        <span class="text-slate-mist"> · Made by sinn0o</span>
+        · <a href="mailto:nsysinyung03@gmail.com" class="underline hover:text-honey-soft transition-colors duration-200">이메일 보내기</a>
+      </div>
+      <nav class="flex items-center gap-6 text-sm">
+        <a href="https://github.com/sinn0o/review" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 hover:text-honey-soft transition-colors duration-200">
+          <i data-lucide="github" class="w-4 h-4"></i> GitHub
+        </a>
+        <a href="../project_hub/index.html" class="hover:text-honey-soft transition-colors duration-200">프로젝트 허브로 돌아가기</a>
+      </nav>
+    </div>
+  </footer>
+
+<!-- Lucide 아이콘 -->
+<script src="https://unpkg.com/lucide@latest"></script>
+
+<script>
+(function(){
+  // ============================================================
+  // 가짜 데이터
+  // ============================================================
+  const restaurants = [
+    { name:'성수 연탄집', category:'구이·고기', neighborhood:'성수동', rating:4.6, reviewCount:182, image:'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=800&auto=format&fit=crop' },
+    { name:'연남 국수집', category:'면 요리', neighborhood:'연남동', rating:4.4, reviewCount:97, image:'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?q=80&w=800&auto=format&fit=crop' },
+    { name:'을지로 노포', category:'한식·백반', neighborhood:'을지로', rating:4.8, reviewCount:243, image:'https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=800&auto=format&fit=crop' },
+    { name:'합정 라멘집', category:'일식·라멘', neighborhood:'합정동', rating:4.3, reviewCount:64, image:'https://images.unsplash.com/photo-1583224964978-2257b960c3d3?q=80&w=800&auto=format&fit=crop' },
+    { name:'망원 화덕피자', category:'양식·피자', neighborhood:'망원동', rating:4.5, reviewCount:118, image:'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?q=80&w=800&auto=format&fit=crop' },
+    { name:'종로 냉면집', category:'한식·면요리', neighborhood:'종로', rating:4.2, reviewCount:76, image:'https://images.unsplash.com/photo-1512058564366-18510be2db19?q=80&w=800&auto=format&fit=crop' },
+  ];
+
+  const reviews = [
+    { rating:4.6, text:'웨이팅 각오했는데 생각보다 빨리 들어갔어요.', place:'성수 연탄집' },
+    { rating:4.3, text:'국물이 자극적이지 않아서 계속 생각나요.', place:'연남 국수집' },
+    { rating:4.8, text:'반찬이 계속 리필되는데 눈치 안 보여요.', place:'을지로 노포' },
+    { rating:4.2, text:'면이 살짝 퍼졌지만 국물은 진했어요.', place:'합정 라멘집' },
+    { rating:4.5, text:'도우가 얇고 바삭해서 두 판 먹었어요.', place:'망원 화덕피자' },
+    { rating:4.4, text:'점심시간엔 줄이 기니 조금 일찍 가세요.', place:'종로 냉면집' },
+    { rating:4.7, text:'혼자 가도 부담 없는 분위기였어요.', place:'성수 연탄집' },
+    { rating:4.3, text:'가격 대비 양이 많아서 만족스러웠어요.', place:'연남 국수집' },
+    { rating:4.6, text:'반찬 하나하나 손이 많이 간 느낌이에요.', place:'을지로 노포' },
+    { rating:4.4, text:'매장이 작아서 두 명이 최대인 듯해요.', place:'망원 화덕피자' },
+  ];
+
+  const features = [
+    { icon:'sparkles', title:'AI 리뷰 요약', desc:'긴 리뷰를 한눈에 읽을 수 있게 정리해드려요.' },
+    { icon:'smile', title:'감성 분석', desc:'별점 뒤에 숨은 진짜 반응을 보여드려요.' },
+    { icon:'bar-chart-3', title:'한눈 대시보드', desc:'도넛 차트와 워드클라우드로 정리해드려요.' },
+  ];
+
+  // ============================================================
+  // 인기 맛집 카드 렌더링
+  // ============================================================
+  const restaurantGrid = document.getElementById('restaurant-grid');
+  restaurants.forEach((r, i) => {
+    const card = document.createElement('article');
+    card.className = 'reveal restaurant-card bg-white rounded-card shadow-card hover:shadow-hover hover:-translate-y-1 transition-all duration-[220ms] ease-out overflow-hidden group';
+    card.style.transitionDelay = (i * 80) + 'ms';
+    card.innerHTML = `
+      <div class="overflow-hidden rounded-img m-2">
+        <img src="${r.image}" alt="${r.name} 대표 사진" loading="lazy"
+             class="w-full aspect-[4/3] object-cover rounded-img transition-transform duration-[220ms] ease-out group-hover:scale-[1.04]" />
+      </div>
+      <div class="px-4 pb-4 pt-1">
+        <h3 class="font-title font-medium text-lg md:text-xl text-cocoa mb-1">${r.name}</h3>
+        <p class="text-xs md:text-[13px] text-bark mb-2">${r.category} · ${r.neighborhood}</p>
+        <p class="text-sm text-cocoa flex items-center gap-1">
+          <span class="text-honey" aria-hidden="true">★</span>
+          <span>${r.rating.toFixed(1)}</span>
+          <span class="sr-only">평점 ${r.rating.toFixed(1)}점</span>
+          <span class="text-bark ml-1">리뷰 ${r.reviewCount}</span>
+        </p>
+      </div>
+    `;
+    restaurantGrid.appendChild(card);
+  });
+
+  // ============================================================
+  // 최근 리뷰 마퀴 렌더링 (5개씩 2줄, 각 줄은 자기 자신과 이어붙여 무한 루프)
+  // ============================================================
+  function reviewChip(rv){
+    const span = document.createElement('span');
+    span.className = 'flex-shrink-0 inline-flex items-center gap-2 bg-ivory rounded-full px-5 py-3 text-sm text-cocoa whitespace-nowrap';
+    span.innerHTML = `
+      <span class="text-honey">★</span>
+      <span>${rv.rating.toFixed(1)}</span>
+      <span>“${rv.text}”</span>
+      <em class="not-italic text-bark text-xs">${rv.place}</em>
+    `;
+    return span;
+  }
+
+  const rowA = reviews.slice(0, 5);
+  const rowB = reviews.slice(5, 10);
+  const track1 = document.getElementById('review-track-1');
+  const track2 = document.getElementById('review-track-2');
+
+  [...rowA, ...rowA].forEach(rv => track1.appendChild(reviewChip(rv)));
+  [...rowB, ...rowB].forEach(rv => track2.appendChild(reviewChip(rv)));
+
+  // ============================================================
+  // 서비스 특징 카드 렌더링
+  // ============================================================
+  const featureGrid = document.getElementById('feature-grid');
+  features.forEach((f, i) => {
+    const card = document.createElement('article');
+    card.className = 'reveal bg-white rounded-card shadow-card p-6 md:p-8';
+    card.style.transitionDelay = (i * 80) + 'ms';
+    card.innerHTML = `
+      <i data-lucide="${f.icon}" class="w-8 h-8 text-bark mb-5" stroke-width="1.5"></i>
+      <h3 class="font-title font-medium text-lg md:text-xl text-cocoa mb-2">${f.title}</h3>
+      <p class="text-sm text-bark leading-[1.7] mb-4">${f.desc}</p>
+      <span class="inline-block bg-honey-soft text-bark text-xs rounded-full px-3 py-1">Coming Soon</span>
+    `;
+    featureGrid.appendChild(card);
+  });
+
+  // Lucide 아이콘 생성 (feature 카드 + 푸터 GitHub 아이콘 포함, DOM 렌더 이후 실행)
+  if (window.lucide) lucide.createIcons();
+
+  // ============================================================
+  // 스크롤 등장 (fade-up)
+  // ============================================================
+  const revealEls = document.querySelectorAll('.reveal');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('is-visible');
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.2 });
+  revealEls.forEach((el) => observer.observe(el));
+})();
+</script>
+
+</body>
+</html>
