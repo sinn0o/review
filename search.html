@@ -14,17 +14,17 @@
 
   1. 카카오 디벨로퍼스(https://developers.kakao.com)에서 애플리케이션을 만들고
      "REST API 키"를 발급받으세요.
-  2. .env.example을 복사해 같은 폴더에 .env로 저장하고,
+  2. .env.local.example을 복사해 같은 폴더에 .env.local로 저장하고,
      그 안의 KAKAO_REST_API_KEY 값에 발급받은 키를 붙여넣으세요.
-     (.env는 .gitignore에 등록되어 있어 git에 커밋되지 않습니다)
+     (.env.local는 .gitignore에 등록되어 있어 git에 커밋되지 않습니다)
   3. 카카오 디벨로퍼스 콘솔 > 내 애플리케이션 > 플랫폼 설정에서 이 페이지를
      여는 도메인을 Web 플랫폼으로 등록해야 브라우저에서 API 호출이 허용됩니다.
 
   이 페이지는 정적 사이트라 서버가 없어서, 검색 실행 전에 브라우저에서
-  fetch('.env')로 이 파일을 직접 읽어와 KEY=VALUE 텍스트를 파싱합니다.
+  fetch('.env.local')로 이 파일을 직접 읽어와 KEY=VALUE 텍스트를 파싱합니다.
 
   ⚠️ file:// 프로토콜로 직접 열면 도메인이 없어(Origin: null) 카카오 API가
-  CORS/도메인 제한으로 요청을 거부할 수 있고, fetch('.env') 자체도
+  CORS/도메인 제한으로 요청을 거부할 수 있고, fetch('.env.local') 자체도
   file://에서는 브라우저에 따라 막힐 수 있습니다. VSCode Live Server 같은
   로컬 정적 서버(예: http://localhost:5500)로 열어서 테스트하세요.
 
@@ -216,7 +216,7 @@
   // 위치 정보(geolocation)를 못 받을 때 쓰는 기본 좌표 — 서울시청
   const FALLBACK_COORD = { x: '126.9780', y: '37.5665' };
 
-  // 카카오 REST API 키 — .env 파일을 fetch로 읽어 런타임에 파싱해 채운다
+  // 카카오 REST API 키 — .env.local 파일을 fetch로 읽어 런타임에 파싱해 채운다
   let KAKAO_REST_API_KEY = null;
   let apiKeyLoadAttempted = false;
 
@@ -256,16 +256,16 @@
   });
 
   // ============================================================
-  // 카카오 REST API 키 로드 — .env 파일을 fetch로 읽어 KEY=VALUE 파싱
+  // 카카오 REST API 키 로드 — .env.local 파일을 fetch로 읽어 KEY=VALUE 파싱
   // (정적 사이트라 서버가 없어 "환경변수"를 진짜로 읽을 수는 없고,
-  // .env를 평문 텍스트 파일로 fetch해서 흉내낸다. 로컬 정적 서버 필요)
+  // .env.local를 평문 텍스트 파일로 fetch해서 흉내낸다. 로컬 정적 서버 필요)
   // ============================================================
   async function loadApiKey(){
     if (apiKeyLoadAttempted) return KAKAO_REST_API_KEY;
     apiKeyLoadAttempted = true;
     try {
-      const res = await fetch('.env');
-      if (!res.ok) throw new Error(`.env 파일을 찾을 수 없어요 (${res.status})`);
+      const res = await fetch('.env.local');
+      if (!res.ok) throw new Error(`.env.local 파일을 찾을 수 없어요 (${res.status})`);
       const text = await res.text();
       text.split(/\r?\n/).forEach((line) => {
         const trimmed = line.trim();
@@ -277,7 +277,7 @@
         if (key === 'KAKAO_REST_API_KEY') KAKAO_REST_API_KEY = value;
       });
     } catch (err) {
-      console.error('.env 로드 실패 — 로컬 정적 서버로 열었는지 확인하세요.', err);
+      console.error('.env.local 로드 실패 — 로컬 정적 서버로 열었는지 확인하세요.', err);
       KAKAO_REST_API_KEY = null;
     }
     return KAKAO_REST_API_KEY;
@@ -356,7 +356,7 @@
   // ============================================================
   function errorMessageFor(err){
     if (err && err.status === 401) {
-      return 'API 키가 올바르지 않아요. .env의 KAKAO_REST_API_KEY 값을 확인해주세요.';
+      return 'API 키가 올바르지 않아요. .env.local의 KAKAO_REST_API_KEY 값을 확인해주세요.';
     }
     if (err && err.status === 429) {
       return '요청이 너무 많아요. 잠시 후 다시 시도해주세요.';
@@ -382,7 +382,7 @@
     hideLocationNotice();
     await loadApiKey();
     if (!hasValidApiKey()) {
-      resultStatus.textContent = '.env에 카카오 REST API 키를 설정해야 검색할 수 있어요. (.env.example 참고, 로컬 정적 서버로 열었는지도 확인하세요)';
+      resultStatus.textContent = '.env.local에 카카오 REST API 키를 설정해야 검색할 수 있어요. (.env.local.example 참고, 로컬 정적 서버로 열었는지도 확인하세요)';
       renderConfigNeededState();
       loadMoreBtn.classList.add('hidden');
       return;
@@ -611,7 +611,7 @@
     resultGrid.appendChild(centeredStateBlock({
       icon: 'key-round',
       title: '검색 기능을 사용할 수 없어요',
-      desc: '.env에 카카오 REST API 키를 설정해야 검색할 수 있어요. (.env.example 참고)',
+      desc: '.env.local에 카카오 REST API 키를 설정해야 검색할 수 있어요. (.env.local.example 참고)',
     }));
     if (window.lucide) lucide.createIcons();
   }

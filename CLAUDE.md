@@ -9,7 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `PRD.md` — 서비스 정의, 랜딩페이지 섹션별 요구사항, 기능 로드맵과 구현 현황(확정 순서: 리뷰+검색 → 애니메이션/모바일 → AI 요약/감성분석 → 로그인 → 대시보드)
 - `DESIGN.md` — 컬러 팔레트, 타이포그래피, 간격, 컴포넌트 스펙, 모션 값. 시각적 스타일을 결정할 때는 이 문서를 그대로 따를 것 — 색상·라운드·그림자·타입 스케일 전부 정확한 값이 지정되어 있으므로 임의로 바꾸지 않는다.
 - `index.html` — 랜딩페이지(단일 파일)
-- `search.html` — "맛집 담기" 검색 페이지(단일 파일). 카카오 로컬 API로 키워드/카테고리 실검색을 수행하고 결과를 카드로 렌더링한다. API 키는 `.env`(gitignore 대상, 커밋 금지)에서 런타임에 `fetch`로 읽어온다 — 템플릿은 `.env.example` 참고.
+- `search.html` — "맛집 담기" 검색 페이지(단일 파일). 카카오 로컬 API로 키워드/카테고리 실검색을 수행하고 결과를 카드로 렌더링한다. API 키는 `.env.local`(gitignore 대상, 커밋 금지)에서 런타임에 `fetch`로 읽어온다 — 템플릿은 `.env.local.example` 참고.
 
 ## 커맨드
 
