@@ -1,7 +1,7 @@
 # 맛밥 (Matbab) — DESIGN.md
 
-**문서 버전** v0.1
-**작성일** 2026-08-14
+**문서 버전** v0.2
+**작성일** 2026-08-14 (갱신 2026-08-20 — 타이포/간격/라운드/그림자/컴포넌트를 Airbnb 디자인 시스템 기반으로 갱신, 컬러 팔레트는 유지)
 **관련 문서** PRD.md v0.2
 
 ---
@@ -87,6 +87,8 @@ Honey(`#E9A227`)는 흰 배경에서 대비비가 약 2.3:1로 **텍스트 색�
 
 ## 3. 타이포그래피
 
+Airbnb 특유의 절제된 위계 — 단계 수를 늘리지 않고, 단계 간 크기·굵기 차이를 명확히 벌려서 스캔하기 쉽게 만든다.
+
 ### 폰트
 
 | 용도 | 폰트 | 비고 |
@@ -105,90 +107,134 @@ Honey(`#E9A227`)는 흰 배경에서 대비비가 약 2.3:1로 **텍스트 색�
 
 ### 스케일
 
-| 단계 | 크기 (desktop / mobile) | 폰트 | 굵기 |
-|---|---|---|---|
-| Display (히어로) | 56 / 34px | Gmarket Sans | Bold |
-| H2 (섹션 제목) | 34 / 26px | Gmarket Sans | Bold |
-| H3 (카드 제목) | 20 / 18px | Gmarket Sans | Medium |
-| Body | 16 / 15px | Pretendard | 400 |
-| Body Strong | 16 / 15px | Pretendard | 600 |
-| Caption | 13 / 12px | Pretendard | 400 |
+Airbnb 기준선(56px 히어로처럼 과장하지 않고, 44~48px대에서 시작해 아래 단계로 명확히 좁혀가는 절제된 스케일)에 맞춰 조정했다.
 
-- 행간: 제목 1.3 / 본문 1.7 (한글은 넉넉하게)
-- 자간: 제목 `-0.02em`, 본문 `0`
+| 단계 | 크기 (desktop / mobile) | 폰트 | 굵기 | 행간 |
+|---|---|---|---|---|
+| Display (히어로) | 48 / 32px | Gmarket Sans | Bold | 1.2 |
+| H2 (섹션 제목) | 32 / 24px | Gmarket Sans | Bold | 1.25 |
+| H3 (카드 제목) | 19 / 17px | Gmarket Sans | Medium | 1.35 |
+| Body | 16 / 15px | Pretendard | 400 | 1.6 |
+| Body Strong | 16 / 15px | Pretendard | 600 | 1.6 |
+| Caption | 13 / 12px | Pretendard | 500 | 1.5 |
+
+- 행간: 제목 1.2~1.35 (Airbnb식으로 이전보다 타이트하게), 본문 1.6 (한글 가독성을 위해 여전히 넉넉하게 유지)
+- 자간: Display `-0.02em`, H2 `-0.01em`, 본문 `0`
 - 줄바꿈: `word-break: keep-all` 필수 — 한글 단어가 어색하게 끊기는 것 방지
+- 섹션 제목(H2) 아래에는 옅은 Bark 톤의 한 줄 부제를 붙여 정보 위계를 한 단계 더 나눈다(캡션 크기, 섹션 제목과 콘텐츠 사이의 간격 규칙은 4장 참고)
 
 ---
 
 ## 4. 형태와 간격
 
-### 라운드
+Airbnb 기준 — 카드·이미지는 배민만큼 둥글지 않게 한 단계 낮추고, 대신 검색바·뱃지 같은 pill 요소로 친근함을 담당하게 한다.
 
-배민 쪽 친근함을 여기서 가져온다.
+### 라운드
 
 | 요소 | 반경 |
 |---|---|
-| 카드 | 20px |
-| 이미지 | 16px |
-| 버튼 / 입력창 | 12px |
+| 카드 | 16px |
+| 이미지 | 12px |
+| 버튼 / 일반 입력창 | 10px |
+| 히어로 검색바 | 999px (pill) |
 | 뱃지 / 칩 | 999px (pill) |
 
 ### 그림자
 
-검정이 아닌 **갈색 기반** 그림자를 써야 크림 배경에서 탁해지지 않는다.
+검정이 아닌 **갈색 기반** 그림자를 써야 크림 배경에서 탁해지지 않는다. Airbnb처럼 평상시엔 거의 안 보일 만큼 옅게, 호버 시엔 블러를 크게 키워 뜨는 느낌을 강조한다.
 
 ```css
---shadow-card:  0 2px 8px rgba(74, 59, 42, 0.06);
---shadow-hover: 0 8px 24px rgba(74, 59, 42, 0.12);
+--shadow-xs:     0 1px 2px  rgba(74, 59, 42, 0.05);  /* 입력창 등 옅은 표면 */
+--shadow-card:   0 2px 6px  rgba(74, 59, 42, 0.05);  /* 카드 평상시 */
+--shadow-hover:  0 16px 32px rgba(74, 59, 42, 0.14); /* 카드 호버, 넓고 부드럽게 */
+--shadow-search: 0 6px 20px rgba(74, 59, 42, 0.10);  /* 히어로 검색바 평상시 */
 ```
 
 ### 간격
 
-8px 배수 체계. `4 / 8 / 12 / 16 / 24 / 32 / 48 / 64 / 96`
+8px 배수 체계는 유지하되, 섹션 여백과 그리드 간격을 Airbnb식으로 한 단계씩 넉넉하게 키운다. `4 / 8 / 12 / 16 / 20 / 24 / 32 / 40 / 64 / 112`
 
-- 콘텐츠 최대폭: 1200px
-- 섹션 상하 여백: 96px (mobile 56px)
-- 카드 그리드 간격: 24px (mobile 16px)
+- 콘텐츠 최대폭: 1280px
+- 섹션 상하 여백: 112px (mobile 64px)
+- 섹션 제목(H2+부제) → 콘텐츠 간격: 40px (mobile 28px)
+- 카드 그리드 간격: 32px (mobile 20px)
 
 ---
 
 ## 5. 컴포넌트
 
+### 네비게이션 바
+
+- 페이지 상단에 고정(`sticky top-0`)되는 얇은 바 — Airbnb의 sticky header 패턴
+- 배경 Cream 90% 불투명 + `backdrop-blur`, 하단 Wheat 1px 보더로 콘텐츠와 분리
+- 높이 72px(mobile 64px), 좌측 워드마크 "맛밥"(Gmarket Bold), 우측에 검색 페이지로 가는 보조 링크(Blueberry, 텍스트+아이콘)
+- 섹션이 아닌 페이지 크롬(chrome)이므로 히어로 → 카드 → 리뷰 → 특징 → 푸터 순서 규칙과는 별개
+
+### 검색바 (히어로)
+
+Airbnb 홈 검색바를 참고한 pill 형태 — 이 서비스의 시그니처 컴포넌트.
+
+- 높이 64px(mobile 56px), 반경 999px(pill), 배경 White, Wheat 1px 보더
+- 평상시 `--shadow-search`, 호버·포커스 시 `--shadow-hover` + Honey 40% 링으로 강조
+- 좌측 돋보기 아이콘(Bark) → 텍스트 입력(`name="q"`) → 우측 Honey pill 버튼("검색")
+- `<form action="search.html" method="GET">` — 별도 JS 없이 제출 시 `search.html?q=<입력값>`으로 이동
+- 카드·뱃지보다 반경이 훨씬 크다는 점이 Airbnb식 위계의 핵심 — 검색바만 완전한 pill, 나머지 컨트롤은 10px
+
 ### 버튼
 
-| 종류 | 배경 | 글자 | 용도 |
-|---|---|---|---|
-| Primary | Honey | Cocoa | 시작하기 |
-| Secondary | 투명 + Wheat 보더 | Cocoa | 보조 동작 |
-| Ghost | 없음 | Blueberry | 텍스트 링크 |
+| 종류 | 배경 | 글자 | 반경 | 용도 |
+|---|---|---|---|---|
+| Primary (검색바 내) | Honey | Cocoa | pill(999px) | 검색 실행 |
+| Secondary | 투명 + Wheat 보더 | Cocoa | 10px | 보조 동작 |
+| Ghost | 없음 | Blueberry | — | 텍스트 링크(네비게이션 등) |
 
-높이 48px(mobile 44px), 좌우 패딩 24px, Gmarket Sans Medium.
+높이 48px(mobile 44px), 좌우 패딩 20~24px, Gmarket Sans Medium.
 
 ### 맛집 카드
 
 ```
 ┌─────────────────┐
-│  [사진 4:3]      │  ← 라운드 16, 호버 시 1.04 확대
+│  [사진 4:3]      │  ← 라운드 12, 호버 시 1.04 확대
 ├─────────────────┤
 │ 가게명 (H3)      │
 │ 카테고리 · 지역   │  ← Bark, Caption
-│ ★ 4.6  리뷰 128  │  ← 별 Honey, 숫자 Cocoa
+│ ★ 4.6  리뷰 128  │  ← 별 Honey, 숫자 Cocoa(Body Strong)
 └─────────────────┘
 ```
 
-- 흰 카드가 Cream 배경 위에 떠 있는 구조
-- 호버: 그림자 강화 + `translateY(-4px)`, 220ms ease-out
+- 흰 카드가 Ivory 배경 위에 떠 있는 구조, 카드 자체 반경 16px
+- 평상시 그림자는 `--shadow-card`로 거의 티 안 나게, 호버 시 `--shadow-hover` + `translateY(-6px)`로 뚜렷하게 뜬다 — Airbnb 리스팅 카드 특유의 "평소엔 조용하다가 호버하면 확 떠오르는" elevation
+- 트랜지션 240ms ease-out (기존 220ms보다 살짝 느리게, 더 부드럽게)
 - 이미지는 `overflow:hidden` 컨테이너 안에서만 확대 (카드 자체는 고정)
+
+### 검색 결과 카드 (search.html)
+
+카카오 로컬 API 응답에는 별점·리뷰 수가 없다(`place_name` · `category_name` · `address_name`/`road_address_name` · `phone` · `place_url`만 제공). 위 "맛집 카드"의 ★ 별점 스펙을 그대로 쓰지 않고, 이 데이터에 맞는 변형을 쓴다.
+
+```
+┌─────────────────────┐
+│ [카테고리 칩]         │  ← Ivory 배경 pill, Bark, Caption
+│ 가게명 (H3)           │
+│ 📍 주소               │  ← Body, 아이콘 Bark
+│ ☎ 전화번호 (있을 때만) │
+│ ─────────────────    │  ← Wheat 구분선
+│ 카카오맵에서 보기 →    │  ← Blueberry 링크
+└─────────────────────┘
+```
+
+- 사진이 없으므로(카카오 API 미제공) 카드 상단을 이미지 대신 카테고리 pill로 시작해 시각적 진입점을 만든다
+- 흰 카드, 반경 16px, `--shadow-card` → 호버 시 `--shadow-hover` + `translateY(-4px)`
+- `place_url`이 있을 때만 하단에 구분선 + 지도 링크를 표시(없으면 생략)
 
 ### 리뷰 칩 (최근 리뷰 섹션)
 
-- Ivory 배경, pill 라운드, 높이 자유
+- Ivory 배경, pill 라운드, 높이 자유(수직 패딩 14px)
 - `★ 4.5` + 한 줄 리뷰 + 가게명(Bark, Caption)
 - 가로 마퀴로 흐르며, `prefers-reduced-motion` 시 정지
 
 ### Coming Soon 뱃지
 
-- 배경 Honey Soft(`#FBE3B4`), 글자 Bark
+- 배경 Honey Soft(`#FBE3B4`), 글자 Bark, Caption 굵기 Medium
 - **Honey를 쓰지 않는다** — 아직 없는 기능이 활성 버튼보다 튀면 안 된다
 - Caption 크기, pill
 
@@ -202,9 +248,8 @@ PRD 3장 구성에 대응.
 
 - 배경 Cream 단색. 큰 음식 사진을 배경으로 깔지 않는다 (텍스트 가독성 우선)
 - 좌측 텍스트 / 우측 이미지의 2단 구성, mobile은 세로 스택
-- 서비스명 맛밥 + Display 카피 + 검색창 **또는** 시작 버튼 하나만
-- 검색창을 택할 경우: 동작하지 않으므로 placeholder에 맥락을 담는다
-  → 예) `곧 검색이 열립니다`
+- 상단 네비게이션 바에 서비스명 "맛밥" 워드마크가 이미 노출되므로 히어로 본문은 Display 카피 + 검색바로 시작한다
+- 검색바는 실제로 동작한다 — 제출 시 `search.html?q=<입력값>`으로 이동(카카오 로컬 API 기반 검색 페이지, 별도 팀원 담당). placeholder는 사용 맥락을 담아 `가게 이름이나 지역으로 검색해보세요`
 
 ### 6.2 인기 맛집 카드
 
@@ -241,7 +286,8 @@ PRD 3장 구성에 대응.
 | 동작 | 값 |
 |---|---|
 | 기본 트랜지션 | 200ms ease-out |
-| 카드 호버 | 220ms, `translateY(-4px)` + 그림자 |
+| 카드 호버 | 240ms, `translateY(-6px)` + `--shadow-card` → `--shadow-hover` |
+| 검색바 호버/포커스 | 200ms, `--shadow-search` → `--shadow-hover` + Honey 링 |
 | 스크롤 등장 | fade-up 24px, 400ms, 순차 80ms 지연 |
 | 마퀴 | 40s linear infinite |
 

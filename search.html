@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>맛집 담기 검색 — 맛밥</title>
+<meta name="description" content="키워드나 카테고리로 맛집을 검색하고 담아보세요." />
+
+<!--
+  ============================================================================
+  search.html — "맛집 담기" 검색 페이지 (기능 스캐폴딩 단계)
+  ============================================================================
+  카카오 로컬 API를 사용합니다. 실행 전에 꼭 확인하세요.
+
+  1. 카카오 디벨로퍼스(https://developers.kakao.com)에서 애플리케이션을 만들고
+     "REST API 키"를 발급받으세요.
+  2. .env.example을 복사해 같은 폴더에 .env로 저장하고,
+     그 안의 KAKAO_REST_API_KEY 값에 발급받은 키를 붙여넣으세요.
+     (.env는 .gitignore에 등록되어 있어 git에 커밋되지 않습니다)
+  3. 카카오 디벨로퍼스 콘솔 > 내 애플리케이션 > 플랫폼 설정에서 이 페이지를
+     여는 도메인을 Web 플랫폼으로 등록해야 브라우저에서 API 호출이 허용됩니다.
+
+  이 페이지는 정적 사이트라 서버가 없어서, 검색 실행 전에 브라우저에서
+  fetch('.env')로 이 파일을 직접 읽어와 KEY=VALUE 텍스트를 파싱합니다.
+
+  ⚠️ file:// 프로토콜로 직접 열면 도메인이 없어(Origin: null) 카카오 API가
+  CORS/도메인 제한으로 요청을 거부할 수 있고, fetch('.env') 자체도
+  file://에서는 브라우저에 따라 막힐 수 있습니다. VSCode Live Server 같은
+  로컬 정적 서버(예: http://localhost:5500)로 열어서 테스트하세요.
+
+  이 페이지는 index.html과 같은 Tailwind 팔레트/토큰을 재사용하며,
+  index.html과 함께 Airbnb 디자인 시스템 기반으로 리스킨되었습니다.
+  카카오 API 응답에는 별점/리뷰 수가 없어 DESIGN.md의 "맛집 카드"(★ 별점)
+  스펙 대신 "검색 결과 카드" 변형(카테고리 칩 + 주소/전화 + 지도 링크)을 씁니다.
+  ============================================================================
+-->
+
+<!-- Pretendard (본문) -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
+
+<!-- Tailwind CDN -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          honey: '#E9A227',
+          'amber-deep': '#C9821A',
+          'honey-soft': '#FBE3B4',
+          cream: '#FFFCF5',
+          ivory: '#F7F0E3',
+          wheat: '#D9C6A5',
+          bark: '#7A6A57',
+          cocoa: '#2E2620',
+          blueberry: '#35566B',
+          'slate-mist': '#B9CAD4',
+        },
+        fontFamily: {
+          title: ['GmarketSans', 'Pretendard', 'sans-serif'],
+          body: ['Pretendard', '-apple-system', 'sans-serif'],
+        },
+        borderRadius: { card: '16px', img: '12px', control: '10px' },
+        boxShadow: {
+          xs: '0 1px 2px rgba(74,59,42,0.05)',
+          card: '0 2px 6px rgba(74,59,42,0.05)',
+          hover: '0 16px 32px rgba(74,59,42,0.14)',
+          search: '0 6px 20px rgba(74,59,42,0.10)',
+        },
+        maxWidth: { content: '1280px' },
+      },
+    },
+  }
+</script>
+
+<!-- Gmarket Sans (제목 전용, 눈누 CDN) -->
+<style>
+  @font-face{
+    font-family:'GmarketSans';
+    font-weight:700;
+    src:url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2001@1.1/GmarketSansBold.woff') format('woff');
+    font-display:swap;
+  }
+  @font-face{
+    font-family:'GmarketSans';
+    font-weight:500;
+    src:url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2001@1.1/GmarketSansMedium.woff') format('woff');
+    font-display:swap;
+  }
+
+  body{ font-family:'Pretendard', -apple-system, sans-serif; word-break: keep-all; }
+
+  .chip[aria-pressed="true"]{
+    background-color: #E9A227;
+    color: #2E2620;
+    border-color: #E9A227;
+    box-shadow: 0 2px 6px rgba(74,59,42,0.15);
+  }
+
+  /* ===== 로딩 스켈레톤 ===== */
+  .skeleton{ background-color:#F1E7D3; border-radius:8px; }
+  .skeleton-pulse{ animation: skeleton-pulse 1.4s ease-in-out infinite; }
+  @keyframes skeleton-pulse{ 0%, 100%{ opacity:1; } 50%{ opacity:.45; } }
+
+  /* ===== 더 보기 버튼 스피너 ===== */
+  .spin{ animation: spin .8s linear infinite; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  /* ===== 모션 최소화 사용자 대응 (prefers-reduced-motion) ===== */
+  @media (prefers-reduced-motion: reduce){
+    *, *::before, *::after{
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+    .skeleton-pulse{ opacity: .7; }
+  }
+</style>
+</head>
+<body class="bg-cream text-cocoa">
+
+  <!-- ============================================================ -->
+  <!-- 헤더 / 검색 영역 -->
+  <!-- ============================================================ -->
+  <header class="sticky top-0 z-40 bg-cream/90 backdrop-blur-sm border-b border-wheat/50">
+    <div class="max-w-content mx-auto px-4 md:px-6 py-6 md:py-10">
+      <a href="index.html" class="inline-block font-title font-bold text-lg text-cocoa mb-6 rounded-control focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-honey focus-visible:ring-offset-2 focus-visible:ring-offset-cream">맛밥</a>
+      <h1 class="font-title font-bold text-2xl md:text-[32px] tracking-[-0.01em] text-cocoa mb-6">
+        맛집 담기
+      </h1>
+
+      <form id="search-form" class="flex flex-col sm:flex-row gap-3 mb-5" role="search">
+        <label for="search-input" class="sr-only">가게 이름, 지역, 음식 종류로 검색</label>
+        <div class="relative flex-1">
+          <i data-lucide="search" class="w-5 h-5 text-bark absolute left-5 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true"></i>
+          <input
+            id="search-input"
+            type="text"
+            placeholder="가게 이름, 지역, 음식 종류로 검색해보세요"
+            class="w-full h-14 pl-12 pr-5 rounded-full border border-wheat/60 bg-white text-cocoa placeholder:text-bark/70 shadow-search focus:outline-none focus:ring-2 focus:ring-honey/40 focus:shadow-hover transition-shadow duration-200"
+            autocomplete="off"
+          />
+        </div>
+        <button
+          type="submit"
+          class="h-14 px-6 rounded-full bg-honey text-cocoa font-title font-medium text-base shadow-search hover:bg-amber-deep hover:shadow-hover transition-all duration-200 whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-honey focus-visible:ring-offset-2 focus-visible:ring-offset-cream"
+        >
+          검색
+        </button>
+      </form>
+
+      <div id="category-chips" class="flex flex-wrap gap-2" role="group" aria-label="카테고리 빠른 필터"></div>
+      <p id="location-notice" class="hidden text-xs text-bark mt-3" aria-live="polite"></p>
+    </div>
+  </header>
+
+  <!-- ============================================================ -->
+  <!-- 결과 영역 -->
+  <!-- ============================================================ -->
+  <main class="bg-ivory min-h-[50vh]">
+    <div class="max-w-content mx-auto px-4 md:px-6 py-12 md:py-20">
+      <p id="result-status" class="text-sm text-bark mb-6 md:mb-8 min-h-[1.25em]" aria-live="polite"></p>
+
+      <div id="result-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 md:gap-8"></div>
+
+      <div class="flex justify-center mt-10">
+        <button
+          id="load-more-btn"
+          type="button"
+          class="hidden h-12 px-6 rounded-full border border-wheat bg-white text-cocoa font-title font-medium text-sm shadow-card hover:shadow-hover hover:-translate-y-0.5 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-honey focus-visible:ring-offset-2 focus-visible:ring-offset-ivory disabled:cursor-not-allowed"
+        >
+          <span class="inline-flex items-center gap-2">
+            <i data-lucide="loader-2" id="load-more-spinner" class="w-4 h-4 hidden" aria-hidden="true"></i>
+            <span id="load-more-label">결과 더 보기</span>
+          </span>
+        </button>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bg-cocoa text-cream">
+    <div class="max-w-content mx-auto px-4 md:px-6 py-10 flex items-center justify-between gap-6">
+      <a href="index.html" class="text-sm hover:text-honey-soft transition-colors duration-200 rounded-control focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-honey-soft focus-visible:ring-offset-2 focus-visible:ring-offset-cocoa">← 맛밥 홈으로</a>
+      <span class="text-xs text-slate-mist">검색 결과는 카카오 로컬 API 제공</span>
+    </div>
+  </footer>
+
+<!-- Lucide 아이콘 -->
+<script src="https://unpkg.com/lucide@latest"></script>
+
+<script>
+(function(){
+  // ============================================================
+  // 카테고리 빠른 필터 데이터
+  // ------------------------------------------------------------
+  // 카카오 카테고리 코드(category_group_code)는 "FD6=음식점 전체",
+  // "CE7=카페" 처럼 굵은 단위만 지원하고 한식/중식/일식 같은 세부
+  // 업종은 구분해주지 않는다. 그래서 세부 업종 칩은 카카오
+  // keyword.json에 업종 키워드를 얹어 흉내낸다.
+  // 업종 키워드가 없는 칩("전체", "카페")은 입력창이 비어 있어도
+  // 동작해야 하므로, 이 경우에는 category.json(카테고리 검색) +
+  // 현재 위치 좌표를 사용한다.
+  // ============================================================
+  const categories = [
+    { id: 'all',      label: '전체',      groupCode: 'FD6', keyword: '' },
+    { id: 'korean',   label: '한식',      groupCode: 'FD6', keyword: '한식' },
+    { id: 'cafe',     label: '카페',      groupCode: 'CE7', keyword: '' },
+    { id: 'western',  label: '양식',      groupCode: 'FD6', keyword: '양식' },
+    { id: 'chinese',  label: '중식',      groupCode: 'FD6', keyword: '중식' },
+    { id: 'japanese', label: '일식',      groupCode: 'FD6', keyword: '일식' },
+    { id: 'snack',    label: '분식',      groupCode: 'FD6', keyword: '분식' },
+    { id: 'bar',      label: '술집·호프', groupCode: 'FD6', keyword: '술집' },
+  ];
+
+  // 위치 정보(geolocation)를 못 받을 때 쓰는 기본 좌표 — 서울시청
+  const FALLBACK_COORD = { x: '126.9780', y: '37.5665' };
+
+  // 카카오 REST API 키 — .env 파일을 fetch로 읽어 런타임에 파싱해 채운다
+  let KAKAO_REST_API_KEY = null;
+  let apiKeyLoadAttempted = false;
+
+  let activeCategoryId = 'all';
+  let currentPage = 1;
+  let isEnd = true;
+  let lastRequest = null; // 다음 페이지 요청 시 재사용
+
+  const searchForm = document.getElementById('search-form');
+  const searchInput = document.getElementById('search-input');
+  const chipContainer = document.getElementById('category-chips');
+  const resultGrid = document.getElementById('result-grid');
+  const resultStatus = document.getElementById('result-status');
+  const loadMoreBtn = document.getElementById('load-more-btn');
+  const loadMoreLabel = document.getElementById('load-more-label');
+  const loadMoreSpinner = document.getElementById('load-more-spinner');
+  const locationNotice = document.getElementById('location-notice');
+
+  // ============================================================
+  // 카테고리 칩 렌더링 (데이터 배열 → DOM, 하드코딩 금지)
+  // ============================================================
+  categories.forEach((cat) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'chip inline-flex items-center h-10 px-4 rounded-full border border-wheat bg-white text-sm font-medium text-cocoa shadow-xs hover:border-honey hover:shadow-card transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-honey focus-visible:ring-offset-2 focus-visible:ring-offset-cream';
+    btn.textContent = cat.label;
+    btn.dataset.categoryId = cat.id;
+    btn.setAttribute('aria-pressed', cat.id === activeCategoryId ? 'true' : 'false');
+    btn.addEventListener('click', () => {
+      activeCategoryId = cat.id;
+      [...chipContainer.children].forEach((el) => {
+        el.setAttribute('aria-pressed', el.dataset.categoryId === activeCategoryId ? 'true' : 'false');
+      });
+      runSearch();
+    });
+    chipContainer.appendChild(btn);
+  });
+
+  // ============================================================
+  // 카카오 REST API 키 로드 — .env 파일을 fetch로 읽어 KEY=VALUE 파싱
+  // (정적 사이트라 서버가 없어 "환경변수"를 진짜로 읽을 수는 없고,
+  // .env를 평문 텍스트 파일로 fetch해서 흉내낸다. 로컬 정적 서버 필요)
+  // ============================================================
+  async function loadApiKey(){
+    if (apiKeyLoadAttempted) return KAKAO_REST_API_KEY;
+    apiKeyLoadAttempted = true;
+    try {
+      const res = await fetch('.env');
+      if (!res.ok) throw new Error(`.env 파일을 찾을 수 없어요 (${res.status})`);
+      const text = await res.text();
+      text.split(/\r?\n/).forEach((line) => {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) return; // 빈 줄 / 주석 무시
+        const eqIdx = trimmed.indexOf('=');
+        if (eqIdx === -1) return;
+        const key = trimmed.slice(0, eqIdx).trim();
+        const value = trimmed.slice(eqIdx + 1).trim();
+        if (key === 'KAKAO_REST_API_KEY') KAKAO_REST_API_KEY = value;
+      });
+    } catch (err) {
+      console.error('.env 로드 실패 — 로컬 정적 서버로 열었는지 확인하세요.', err);
+      KAKAO_REST_API_KEY = null;
+    }
+    return KAKAO_REST_API_KEY;
+  }
+
+  function hasValidApiKey(){
+    return typeof KAKAO_REST_API_KEY === 'string'
+      && KAKAO_REST_API_KEY.trim() !== ''
+      && KAKAO_REST_API_KEY !== 'YOUR_KAKAO_REST_API_KEY';
+  }
+
+  // ============================================================
+  // 현재 위치 얻기 (실패/거부 시 서울시청 좌표로 대체 — usedFallback으로 구분)
+  // ============================================================
+  function getCoords(){
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) {
+        resolve({ ...FALLBACK_COORD, usedFallback: true });
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({ x: String(pos.coords.longitude), y: String(pos.coords.latitude), usedFallback: false }),
+        () => resolve({ ...FALLBACK_COORD, usedFallback: true }),
+        { timeout: 4000 }
+      );
+    });
+  }
+
+  // ============================================================
+  // 카카오 로컬 API 호출
+  // 실패 시 err.status에 HTTP 상태 코드를 실어서 던진다 (401/429 등 구분용).
+  // fetch 자체가 실패하면(TypeError, 네트워크/CORS 오류) status 없이 던져진다.
+  // ============================================================
+  async function fetchKeywordSearch(query, page){
+    // category_group_code를 키워드 검색에 같이 걸면 카카오가 그 카테고리로
+    // 태그되지 않은 장소를 통째로 제외해버린다(예: "스타벅스"는 FD6=음식점이
+    // 아니라 CE7=카페로 분류되어 있어 FD6 필터를 걸면 0건이 됨). 그래서
+    // 키워드 검색에는 category_group_code를 걸지 않고 query 텍스트에만
+    // 맡긴다 — 세부 업종 칩(한식/양식 등)은 이미 keyword에 업종 단어가
+    // 섞여 들어가므로(예: "한식 강남") 이걸로 충분히 좁혀진다.
+    const params = new URLSearchParams({ query, page: String(page), size: '15' });
+    const res = await fetch(`https://dapi.kakao.com/v2/local/search/keyword.json?${params.toString()}`, {
+      headers: { Authorization: `KakaoAK ${KAKAO_REST_API_KEY}` },
+    });
+    if (!res.ok) {
+      const err = new Error(`키워드 검색 실패 (${res.status})`);
+      err.status = res.status;
+      throw err;
+    }
+    return res.json();
+  }
+
+  async function fetchCategorySearch(groupCode, coords, page){
+    const params = new URLSearchParams({
+      category_group_code: groupCode,
+      x: coords.x,
+      y: coords.y,
+      radius: '20000', // 20km
+      page: String(page),
+      size: '15',
+      sort: 'accuracy',
+    });
+    const res = await fetch(`https://dapi.kakao.com/v2/local/search/category.json?${params.toString()}`, {
+      headers: { Authorization: `KakaoAK ${KAKAO_REST_API_KEY}` },
+    });
+    if (!res.ok) {
+      const err = new Error(`카테고리 검색 실패 (${res.status})`);
+      err.status = res.status;
+      throw err;
+    }
+    return res.json();
+  }
+
+  // ============================================================
+  // 에러 메시지 매핑 — 네트워크 오류 / 401(키 오류) / 429(요청 과다) / 기타 구분
+  // ============================================================
+  function errorMessageFor(err){
+    if (err && err.status === 401) {
+      return 'API 키가 올바르지 않아요. .env의 KAKAO_REST_API_KEY 값을 확인해주세요.';
+    }
+    if (err && err.status === 429) {
+      return '요청이 너무 많아요. 잠시 후 다시 시도해주세요.';
+    }
+    if (err && typeof err.status === 'number') {
+      return `검색 중 문제가 발생했어요. (오류 코드 ${err.status})`;
+    }
+    if (err instanceof TypeError) {
+      // fetch 자체가 실패 — 네트워크 오류, 오프라인, CORS/도메인 제한 등
+      return '네트워크 연결을 확인해주세요. file://로 열었다면 로컬 서버로 다시 열어보세요.';
+    }
+    return '검색 중 문제가 발생했어요. 잠시 후 다시 시도해주세요.';
+  }
+
+  // ============================================================
+  // 검색 실행 — 입력창 값 + 활성 카테고리를 조합해 어떤 API를 부를지 결정
+  // ============================================================
+  async function runSearch(){
+    const rawInput = searchInput.value.trim();
+    const cat = categories.find((c) => c.id === activeCategoryId) || categories[0];
+    const combinedQuery = [cat.keyword, rawInput].filter(Boolean).join(' ').trim();
+
+    hideLocationNotice();
+    await loadApiKey();
+    if (!hasValidApiKey()) {
+      resultStatus.textContent = '.env에 카카오 REST API 키를 설정해야 검색할 수 있어요. (.env.example 참고, 로컬 정적 서버로 열었는지도 확인하세요)';
+      renderConfigNeededState();
+      loadMoreBtn.classList.add('hidden');
+      return;
+    }
+
+    currentPage = 1;
+    loadMoreBtn.classList.add('hidden');
+
+    if (!combinedQuery) {
+      // "전체" 카테고리 + 빈 입력창 → 현재 위치 기준 카테고리 검색
+      resultStatus.textContent = '내 주변 맛집을 찾는 중이에요…';
+      renderSkeletons();
+      try {
+        const coords = await getCoords();
+        if (coords.usedFallback) {
+          showLocationNotice('위치 정보를 가져오지 못해 서울시청 기준으로 보여드려요.');
+        }
+        lastRequest = { type: 'category', groupCode: cat.groupCode, coords };
+        const data = await fetchCategorySearch(cat.groupCode, coords, currentPage);
+        applyResult(data, false);
+      } catch (err) {
+        showError(err);
+      }
+      return;
+    }
+
+    // 그 외에는 키워드 검색 (업종 칩은 keyword에 섞인 단어로만 좁힘 — category_group_code는 안 씀)
+    resultStatus.textContent = '검색하는 중이에요…';
+    renderSkeletons();
+    try {
+      lastRequest = { type: 'keyword', query: combinedQuery };
+      const data = await fetchKeywordSearch(combinedQuery, currentPage);
+      applyResult(data, false);
+    } catch (err) {
+      showError(err);
+    }
+  }
+
+  async function loadMore(){
+    if (!lastRequest || isEnd) return;
+    currentPage += 1;
+    setLoadMoreLoading(true);
+    try {
+      const data = lastRequest.type === 'category'
+        ? await fetchCategorySearch(lastRequest.groupCode, lastRequest.coords, currentPage)
+        : await fetchKeywordSearch(lastRequest.query, currentPage);
+      applyResult(data, true);
+    } catch (err) {
+      currentPage -= 1; // 실패했으니 페이지 번호를 되돌려 재시도 가능하게 둔다
+      console.error(err);
+      resultStatus.textContent = errorMessageFor(err);
+    } finally {
+      setLoadMoreLoading(false);
+    }
+  }
+
+  function setLoadMoreLoading(loading){
+    loadMoreBtn.disabled = loading;
+    loadMoreBtn.classList.toggle('opacity-60', loading);
+    loadMoreBtn.classList.toggle('cursor-not-allowed', loading);
+    loadMoreLabel.textContent = loading ? '불러오는 중…' : '결과 더 보기';
+    loadMoreSpinner.classList.toggle('hidden', !loading);
+    loadMoreSpinner.classList.toggle('spin', loading);
+  }
+
+  function showLocationNotice(text){
+    locationNotice.textContent = text;
+    locationNotice.classList.remove('hidden');
+  }
+
+  function hideLocationNotice(){
+    locationNotice.textContent = '';
+    locationNotice.classList.add('hidden');
+  }
+
+  // 첫 검색(전체 교체) 실패 시 사용 — 기존 카드 목록을 에러 상태로 교체
+  function showError(err){
+    console.error(err);
+    const message = errorMessageFor(err);
+    resultStatus.textContent = message;
+    renderErrorState(message);
+    loadMoreBtn.classList.add('hidden');
+  }
+
+  function applyResult(data, append){
+    const documents = (data && data.documents) || [];
+    const meta = (data && data.meta) || {};
+    isEnd = meta.is_end !== false; // 알 수 없으면 안전하게 종료 처리
+
+    if (documents.length === 0 && !append) {
+      renderEmptyState();
+    } else if (!append) {
+      renderResults(documents);
+    } else {
+      appendResults(documents);
+    }
+
+    const totalCount = meta.pageable_count ?? documents.length;
+    if (documents.length === 0 && !append) {
+      resultStatus.textContent = '검색 결과가 없어요. 다른 키워드나 카테고리로 시도해보세요.';
+    } else {
+      resultStatus.textContent = `총 ${totalCount}개 결과 중 ${resultGrid.children.length}개 표시 중`;
+    }
+
+    loadMoreBtn.classList.toggle('hidden', isEnd);
+  }
+
+  // ============================================================
+  // 검색 결과 카드 렌더링 (데이터 우선 렌더링 — createElement/템플릿 문자열)
+  // 카카오 API에는 별점/리뷰수가 없으므로 실제 필드만 사용:
+  // place_name, category_name, road_address_name/address_name, phone, place_url
+  // ============================================================
+  function placeCard(place){
+    const card = document.createElement('article');
+    card.className = 'place-card bg-white rounded-card shadow-card hover:shadow-hover hover:-translate-y-1 transition-all duration-[240ms] ease-out p-6 flex flex-col gap-3';
+
+    const address = place.road_address_name || place.address_name || '주소 정보 없음';
+    const category = (place.category_name || '').split(' > ').pop() || '카테고리 정보 없음';
+
+    card.innerHTML = `
+      <div>
+        <span class="inline-block bg-ivory text-bark text-xs font-medium rounded-full px-3 py-1 mb-3">${escapeHtml(category)}</span>
+        <h3 class="font-title font-medium text-[17px] md:text-[19px] leading-[1.35] text-cocoa">${escapeHtml(place.place_name || '이름 정보 없음')}</h3>
+      </div>
+      <div class="flex flex-col gap-2 text-[15px] text-cocoa">
+        <p class="flex items-start gap-2">
+          <i data-lucide="map-pin" class="w-4 h-4 text-bark flex-shrink-0 mt-0.5" aria-hidden="true"></i>
+          <span>${escapeHtml(address)}</span>
+        </p>
+        ${place.phone ? `
+        <p class="flex items-center gap-2">
+          <i data-lucide="phone" class="w-4 h-4 text-bark flex-shrink-0" aria-hidden="true"></i>
+          <span>${escapeHtml(place.phone)}</span>
+        </p>` : ''}
+      </div>
+      ${place.place_url ? `
+      <div class="pt-3 mt-1 border-t border-wheat/60">
+        <a href="${place.place_url}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 text-sm font-medium text-blueberry hover:text-cocoa transition-colors duration-200 rounded-control focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-honey focus-visible:ring-offset-2">
+          카카오맵에서 보기 <span aria-hidden="true">→</span>
+        </a>
+      </div>` : ''}
+    `;
+    return card;
+  }
+
+  function renderResults(documents){
+    resultGrid.innerHTML = '';
+    resultGrid.removeAttribute('aria-busy');
+    appendResults(documents);
+  }
+
+  function appendResults(documents){
+    resultGrid.removeAttribute('aria-busy');
+    documents.forEach((place) => resultGrid.appendChild(placeCard(place)));
+    if (window.lucide) lucide.createIcons();
+  }
+
+  function escapeHtml(str){
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  // ============================================================
+  // 로딩 / 빈 결과 / 에러 / 설정 필요 / 대기 상태 UI
+  // (전부 데이터 우선 렌더링 — 하드코딩 없이 createElement로 구성)
+  // ============================================================
+  function skeletonCard(){
+    const card = document.createElement('div');
+    card.className = 'bg-white rounded-card shadow-card p-6 flex flex-col gap-3';
+    card.setAttribute('aria-hidden', 'true');
+    card.innerHTML = `
+      <div class="skeleton skeleton-pulse h-5 w-20 rounded-full"></div>
+      <div class="skeleton skeleton-pulse h-5 w-3/4"></div>
+      <div class="flex flex-col gap-2 mt-1">
+        <div class="skeleton skeleton-pulse h-4 w-full"></div>
+        <div class="skeleton skeleton-pulse h-4 w-1/2"></div>
+      </div>
+    `;
+    return card;
+  }
+
+  function renderSkeletons(count){
+    resultGrid.innerHTML = '';
+    resultGrid.setAttribute('aria-busy', 'true');
+    for (let i = 0; i < (count || 6); i++) resultGrid.appendChild(skeletonCard());
+  }
+
+  function centeredStateBlock({ icon, iconClass, title, desc }){
+    const wrap = document.createElement('div');
+    wrap.className = 'col-span-full flex flex-col items-center justify-center text-center py-16 px-4';
+    wrap.innerHTML = `
+      <i data-lucide="${icon}" class="w-10 h-10 ${iconClass || 'text-bark/50'} mb-4" aria-hidden="true"></i>
+      ${title ? `<p class="font-title font-medium text-lg text-cocoa mb-1">${escapeHtml(title)}</p>` : ''}
+      ${desc ? `<p class="text-sm text-bark max-w-sm">${escapeHtml(desc)}</p>` : ''}
+    `;
+    return wrap;
+  }
+
+  function renderEmptyState(){
+    resultGrid.innerHTML = '';
+    resultGrid.removeAttribute('aria-busy');
+    resultGrid.appendChild(centeredStateBlock({
+      icon: 'search-x',
+      title: '검색 결과가 없어요',
+      desc: '다른 키워드나 카테고리로 다시 시도해보세요.',
+    }));
+    if (window.lucide) lucide.createIcons();
+  }
+
+  function renderErrorState(message){
+    resultGrid.innerHTML = '';
+    resultGrid.removeAttribute('aria-busy');
+    resultGrid.appendChild(centeredStateBlock({
+      icon: 'alert-triangle',
+      iconClass: 'text-blueberry/70',
+      title: '검색에 문제가 생겼어요',
+      desc: message,
+    }));
+    if (window.lucide) lucide.createIcons();
+  }
+
+  function renderConfigNeededState(){
+    resultGrid.innerHTML = '';
+    resultGrid.removeAttribute('aria-busy');
+    resultGrid.appendChild(centeredStateBlock({
+      icon: 'key-round',
+      title: '검색 기능을 사용할 수 없어요',
+      desc: '.env에 카카오 REST API 키를 설정해야 검색할 수 있어요. (.env.example 참고)',
+    }));
+    if (window.lucide) lucide.createIcons();
+  }
+
+  function renderIdleState(){
+    resultGrid.innerHTML = '';
+    resultGrid.removeAttribute('aria-busy');
+    resultGrid.appendChild(centeredStateBlock({
+      icon: 'utensils',
+      desc: '검색어를 입력하거나 카테고리를 선택해보세요.',
+    }));
+    if (window.lucide) lucide.createIcons();
+  }
+
+  // ============================================================
+  // 이벤트 바인딩
+  // ============================================================
+  searchForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    runSearch();
+  });
+
+  loadMoreBtn.addEventListener('click', loadMore);
+
+  // ============================================================
+  // 초기 진입: URL 쿼리 파라미터 ?q=검색어 → 자동 키워드 검색
+  // (index.html 히어로 검색창에서 이 파라미터로 넘겨줄 예정)
+  // ============================================================
+  if (window.lucide) lucide.createIcons(); // 헤더 검색 아이콘 등 정적 마크업부터 먼저 렌더링
+
+  const initialQuery = new URLSearchParams(window.location.search).get('q');
+  if (initialQuery) {
+    searchInput.value = initialQuery;
+    runSearch();
+  } else {
+    renderIdleState();
+  }
+})();
+</script>
+
+</body>
+</html>
