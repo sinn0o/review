@@ -4,11 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 프로젝트
 
-**맛밥 (Matbab)** — "리뷰를 다 읽지 않아도 실제 평판을 빠르게 파악하는" 맛집 리뷰 서비스의 랜딩페이지. 이 저장소에는 랜딩페이지만 있고, 서비스 본체(검색, AI 요약, 감성 분석, 대시보드, 로그인)는 아직 구현되지 않은 로드맵 단계다.
+**맛밥 (Matbab)** — "리뷰를 다 읽지 않아도 실제 평판을 빠르게 파악하는" 맛집 리뷰 서비스의 랜딩페이지. 로드맵 1번(검색)은 카카오 로컬 API 기반 실검색(`search.html`)으로 이미 구현됐다. 나머지 서비스 본체(AI 요약, 감성 분석, 대시보드, 로그인)는 아직 구현되지 않은 로드맵 단계이며, `index.html`의 인기 맛집 카드·최근 리뷰 섹션도 여전히 목업 데이터다.
 
-- `PRD.md` — 서비스 정의, 랜딩페이지 섹션별 요구사항, 기능 로드맵(확정 순서: 리뷰+검색 → 애니메이션/모바일 → AI 요약/감성분석 → 로그인 → 대시보드)
+- `PRD.md` — 서비스 정의, 랜딩페이지 섹션별 요구사항, 기능 로드맵과 구현 현황(확정 순서: 리뷰+검색 → 애니메이션/모바일 → AI 요약/감성분석 → 로그인 → 대시보드)
 - `DESIGN.md` — 컬러 팔레트, 타이포그래피, 간격, 컴포넌트 스펙, 모션 값. 시각적 스타일을 결정할 때는 이 문서를 그대로 따를 것 — 색상·라운드·그림자·타입 스케일 전부 정확한 값이 지정되어 있으므로 임의로 바꾸지 않는다.
-- `index.html` — 사이트 전체(단일 파일)
+- `index.html` — 랜딩페이지(단일 파일)
+- `search.html` — "맛집 담기" 검색 페이지(단일 파일). 카카오 로컬 API로 키워드/카테고리 실검색을 수행하고 결과를 카드로 렌더링한다. API 키는 `.env`(gitignore 대상, 커밋 금지)에서 런타임에 `fetch`로 읽어온다 — 템플릿은 `.env.example` 참고.
 
 ## 커맨드
 
@@ -31,7 +32,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### 저장소 간 링크
 
-푸터는 한 단계 위의 형제 프로젝트(별도 git 저장소)인 `../project_hub/index.html`로 연결된다. 이 상대경로는 `review/`와 `project_hub/`가 나란히 체크아웃되어 있을 때만 유효하며, `review`만 단독으로 배포하면 깨진다.
+푸터의 "프로젝트 허브로 돌아가기" 링크는 별도로 배포된 project_hub 사이트(`https://project-hub-omega-seven.vercel.app/`)를 새 탭(`target="_blank" rel="noopener noreferrer"`)으로 가리키는 절대 URL이다. 예전에는 형제 저장소를 상대경로(`../project_hub/index.html`)로 참조해서 `review`만 단독 배포하면 깨졌지만, 지금은 절대 URL이라 `review` 저장소만 배포해도 정상 동작한다.
 
 ## 스타일링 전 알아둘 디자인 제약
 
