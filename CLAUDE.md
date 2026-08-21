@@ -9,7 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `PRD.md` — 서비스 정의, 랜딩페이지 섹션별 요구사항, 기능 로드맵과 구현 현황(확정 순서: 리뷰+검색 → 애니메이션/모바일 → AI 요약/감성분석 → 로그인 → 대시보드)
 - `DESIGN.md` — 컬러 팔레트, 타이포그래피, 간격, 컴포넌트 스펙, 모션 값. 시각적 스타일을 결정할 때는 이 문서를 그대로 따를 것 — 색상·라운드·그림자·타입 스케일 전부 정확한 값이 지정되어 있으므로 임의로 바꾸지 않는다.
 - `index.html` — 랜딩페이지(단일 파일)
-- `search.html` — "맛집 담기" 검색 페이지(단일 파일). 카카오 로컬 API로 키워드/카테고리 실검색을 수행하고 결과를 카드로 렌더링한다. API 키는 `.env.local`(gitignore 대상, 커밋 금지)에서 런타임에 `fetch`로 읽어온다 — 템플릿은 `.env.local.example` 참고.
+- `search.html` — "맛집 담기" 검색 페이지(단일 파일). 카카오 로컬 API로 키워드/카테고리 실검색을 수행해 카드로 렌더링하고, 카드를 클릭하면 Google Places API (New)로 그 가게의 별점·리뷰를 모달로 보여준다. 두 API 모두 브라우저가 먼저 자기 자신의 `api/kakao-search.js`/`api/google-reviews.js`(Vercel 서버리스 함수, zero-config)를 호출하고, 그 함수가 Vercel 환경변수로 등록된 키를 서버 사이드에서만 사용한다(브라우저에 키 노출 없음). 로컬에서 정적 서버(Live Server 등)로 열면 `/api/...` 요청이 404가 나는데, 그때만 `.env.local`(gitignore 대상, 커밋 금지)을 `fetch`로 읽어 카카오/구글 API를 브라우저에서 직접 호출하는 폴백으로 넘어간다 — 템플릿은 `.env.local.example` 참고.
 
 ## 커맨드
 

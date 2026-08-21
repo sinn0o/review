@@ -1,2 +1,4 @@
-# 카카오 로컬 API REST API 키 (실키 커밋 금지 — .env.local.example을 복사해서 사용)
+# 카카오 로컬 API / 구글 Places API 키 (실키 커밋 금지 — .env.local.example을 복사해서 사용)
+# 프로덕션(Vercel)에서는 쓰이지 않는다 — /api 함수가 Vercel 환경변수를 직접 읽는다.
+# 이 파일은 search.html을 로컬 정적 서버(Live Server 등)로 열었을 때의 폴백 전용이다.
 .env.local

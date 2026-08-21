@@ -8,30 +8,35 @@
 
 <!--
   ============================================================================
-  search.html — "맛집 담기" 검색 페이지 (기능 스캐폴딩 단계)
+  search.html — "맛집 담기" 검색 페이지 + 구글 리뷰 보기
   ============================================================================
-  카카오 로컬 API를 사용합니다. 실행 전에 꼭 확인하세요.
+  카카오 로컬 API(검색)와 Google Places API New(리뷰)를 사용합니다.
 
-  1. 카카오 디벨로퍼스(https://developers.kakao.com)에서 애플리케이션을 만들고
-     "REST API 키"를 발급받으세요.
-  2. .env.local.example을 복사해 같은 폴더에 .env.local로 저장하고,
-     그 안의 KAKAO_REST_API_KEY 값에 발급받은 키를 붙여넣으세요.
-     (.env.local는 .gitignore에 등록되어 있어 git에 커밋되지 않습니다)
-  3. 카카오 디벨로퍼스 콘솔 > 내 애플리케이션 > 플랫폼 설정에서 이 페이지를
-     여는 도메인을 Web 플랫폼으로 등록해야 브라우저에서 API 호출이 허용됩니다.
+  ▶ API 키는 브라우저에 노출되지 않습니다 — 이 페이지는 자기 자신의
+    /api/kakao-search, /api/google-reviews(Vercel 서버리스 함수, 이 저장소의
+    api/ 디렉터리, zero-config)를 먼저 호출합니다. 그 함수들이 Vercel
+    프로젝트 환경변수(KAKAO_REST_API_KEY, GOOGLE_PLACES_API_KEY)를
+    process.env로 서버 사이드에서만 읽어 실제 API를 대신 호출합니다.
 
-  이 페이지는 정적 사이트라 서버가 없어서, 검색 실행 전에 브라우저에서
-  fetch('.env.local')로 이 파일을 직접 읽어와 KEY=VALUE 텍스트를 파싱합니다.
+  ▶ 로컬 정적 서버(Live Server 등)로 열면 어떻게 되나요?
+    정적 서버에는 서버리스 함수가 없어 /api/... 요청이 404가 납니다.
+    그 경우에만(그리고 오직 그 경우에만) 아래 loadApiKey()가
+    .env.local(gitignore 대상, 커밋 금지)을 fetch로 읽어 카카오/구글
+    API를 브라우저에서 직접 호출하는 폴백으로 넘어갑니다. 템플릿은
+    .env.local.example 참고. file://로 직접 열면 이 fetch 자체가
+    막힐 수 있으니 로컬 정적 서버(예: http://localhost:5500)를 쓰세요.
 
-  ⚠️ file:// 프로토콜로 직접 열면 도메인이 없어(Origin: null) 카카오 API가
-  CORS/도메인 제한으로 요청을 거부할 수 있고, fetch('.env.local') 자체도
-  file://에서는 브라우저에 따라 막힐 수 있습니다. VSCode Live Server 같은
-  로컬 정적 서버(예: http://localhost:5500)로 열어서 테스트하세요.
+  ▶ Vercel에 배포할 때는 프로젝트 설정(Settings > Environment Variables)에
+    KAKAO_REST_API_KEY, GOOGLE_PLACES_API_KEY를 등록하고 재배포하세요.
+    (예전에는 .env.local/env.local 두 파일을 빌드 커맨드로 구워 브라우저가
+    다시 읽어오는 방식이었는데, dotfile 서빙 제약과 서버리스 모델 불일치로
+    프로덕션에서 조용히 깨지는 문제가 있어 이 구조로 정리했습니다.)
 
   이 페이지는 index.html과 같은 Tailwind 팔레트/토큰을 재사용하며,
   index.html과 함께 Airbnb 디자인 시스템 기반으로 리스킨되었습니다.
   카카오 API 응답에는 별점/리뷰 수가 없어 DESIGN.md의 "맛집 카드"(★ 별점)
-  스펙 대신 "검색 결과 카드" 변형(카테고리 칩 + 주소/전화 + 지도 링크)을 씁니다.
+  스펙 대신 "검색 결과 카드" 변형(카테고리 칩 + 주소/전화 + 지도 링크)을 쓰고,
+  별점/리뷰는 카드를 클릭하면 뜨는 구글 리뷰 모달에서 보여줍니다.
   ============================================================================
 -->
 
@@ -186,6 +191,30 @@
     </div>
   </footer>
 
+  <!-- ============================================================ -->
+  <!-- 구글 리뷰 모달 (기본 숨김 — 검색 결과 카드를 클릭하면 열림) -->
+  <!-- ============================================================ -->
+  <div id="review-modal-overlay" class="hidden fixed inset-0 z-50 bg-cocoa/50 backdrop-blur-[2px] flex items-center justify-center p-4" aria-hidden="true">
+    <div
+      id="review-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="review-modal-title"
+      tabindex="-1"
+      class="bg-white rounded-card shadow-hover w-full max-w-lg max-h-[85vh] overflow-y-auto p-6 md:p-8 relative focus:outline-none"
+    >
+      <button
+        id="review-modal-close"
+        type="button"
+        aria-label="닫기"
+        class="absolute top-4 right-4 w-9 h-9 flex items-center justify-center rounded-control text-bark hover:text-cocoa hover:bg-ivory transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-honey focus-visible:ring-offset-2"
+      >
+        <i data-lucide="x" class="w-5 h-5" aria-hidden="true"></i>
+      </button>
+      <div id="review-modal-body"></div>
+    </div>
+  </div>
+
 <!-- Lucide 아이콘 -->
 <script src="https://unpkg.com/lucide@latest"></script>
 
@@ -216,8 +245,12 @@
   // 위치 정보(geolocation)를 못 받을 때 쓰는 기본 좌표 — 서울시청
   const FALLBACK_COORD = { x: '126.9780', y: '37.5665' };
 
-  // 카카오 REST API 키 — .env.local 파일을 fetch로 읽어 런타임에 파싱해 채운다
+  // 로컬 정적 서버 폴백 전용 API 키 — .env.local 파일을 fetch로 읽어 런타임에
+  // 파싱해 채운다. 프로덕션(Vercel)에서는 /api 함수가 프록시 역할을 해주므로
+  // 이 값들이 필요 없다 — fetchWithProxyFallback()이 프록시가 없을 때만
+  // (= 정적 서버로 열었을 때만) 이 키들을 로드해서 API를 직접 호출한다.
   let KAKAO_REST_API_KEY = null;
+  let GOOGLE_PLACES_API_KEY = null;
   let apiKeyLoadAttempted = false;
 
   let activeCategoryId = 'all';
@@ -234,6 +267,10 @@
   const loadMoreLabel = document.getElementById('load-more-label');
   const loadMoreSpinner = document.getElementById('load-more-spinner');
   const locationNotice = document.getElementById('location-notice');
+  const reviewModalOverlay = document.getElementById('review-modal-overlay');
+  const reviewModal = document.getElementById('review-modal');
+  const reviewModalBody = document.getElementById('review-modal-body');
+  const reviewModalClose = document.getElementById('review-modal-close');
 
   // ============================================================
   // 카테고리 칩 렌더링 (데이터 배열 → DOM, 하드코딩 금지)
@@ -256,16 +293,17 @@
   });
 
   // ============================================================
-  // 카카오 REST API 키 로드 — .env.local 파일을 fetch로 읽어 KEY=VALUE 파싱
-  // (정적 사이트라 서버가 없어 "환경변수"를 진짜로 읽을 수는 없고,
-  // .env.local를 평문 텍스트 파일로 fetch해서 흉내낸다. 로컬 정적 서버 필요)
+  // 로컬 정적 서버 폴백 키 로드 — KEY=VALUE 텍스트 파일(.env.local)을
+  // fetch로 읽어 파싱한다. /api 프록시가 없는 환경(정적 서버로 열었을 때)
+  // 에서만 fetchWithProxyFallback()이 이 함수를 호출한다 — 프로덕션
+  // (Vercel)에서는 프록시가 항상 응답하므로 이 fetch는 아예 실행되지 않는다.
   // ============================================================
   async function loadApiKey(){
-    if (apiKeyLoadAttempted) return KAKAO_REST_API_KEY;
+    if (apiKeyLoadAttempted) return;
     apiKeyLoadAttempted = true;
     try {
       const res = await fetch('.env.local');
-      if (!res.ok) throw new Error(`.env.local 파일을 찾을 수 없어요 (${res.status})`);
+      if (!res.ok) return;
       const text = await res.text();
       text.split(/\r?\n/).forEach((line) => {
         const trimmed = line.trim();
@@ -275,18 +313,54 @@
         const key = trimmed.slice(0, eqIdx).trim();
         const value = trimmed.slice(eqIdx + 1).trim();
         if (key === 'KAKAO_REST_API_KEY') KAKAO_REST_API_KEY = value;
+        if (key === 'GOOGLE_PLACES_API_KEY') GOOGLE_PLACES_API_KEY = value;
       });
     } catch (err) {
-      console.error('.env.local 로드 실패 — 로컬 정적 서버로 열었는지 확인하세요.', err);
-      KAKAO_REST_API_KEY = null;
+      console.error('.env.local 로드 실패', err);
     }
-    return KAKAO_REST_API_KEY;
   }
 
   function hasValidApiKey(){
     return typeof KAKAO_REST_API_KEY === 'string'
       && KAKAO_REST_API_KEY.trim() !== ''
       && KAKAO_REST_API_KEY !== 'YOUR_KAKAO_REST_API_KEY';
+  }
+
+  function hasValidGoogleApiKey(){
+    return typeof GOOGLE_PLACES_API_KEY === 'string'
+      && GOOGLE_PLACES_API_KEY.trim() !== ''
+      && GOOGLE_PLACES_API_KEY !== 'YOUR_GOOGLE_PLACES_API_KEY';
+  }
+
+  // ============================================================
+  // 프록시 우선(/api/...) → 404·네트워크 실패 시에만 로컬 폴백으로 전환.
+  // 프록시가 실존하며 에러(401/429/5xx)를 준 경우는 폴백하지 않고 그
+  // 에러를 그대로 위로 던진다 — 폴백해봤자 같은 업스트림을 다시 때릴
+  // 뿐이고, 프로덕션에는 애초에 .env.local이 없어 혼란만 커진다.
+  // ============================================================
+  async function fetchWithProxyFallback(proxyUrl, directFallback){
+    let proxyReachable = true;
+    try {
+      const res = await fetch(proxyUrl);
+      if (res.status === 404) {
+        proxyReachable = false; // 이 환경엔 서버리스 함수가 없다(정적 서버) → 폴백
+      } else if (!res.ok) {
+        let detail = null;
+        try { detail = await res.json(); } catch (parseErr) { /* JSON이 아니면 무시 */ }
+        const err = new Error((detail && detail.error) || `요청 실패 (${res.status})`);
+        err.status = res.status;
+        throw err;
+      } else {
+        return res.json();
+      }
+    } catch (err) {
+      if (err instanceof TypeError) {
+        proxyReachable = false; // fetch 자체가 실패 — 네트워크/CORS, 역시 폴백 대상
+      } else {
+        throw err; // 프록시가 실존하며 준 에러는 그대로 전파
+      }
+    }
+    if (!proxyReachable) return directFallback();
   }
 
   // ============================================================
@@ -307,7 +381,8 @@
   }
 
   // ============================================================
-  // 카카오 로컬 API 호출
+  // 카카오 로컬 API 호출 — /api/kakao-search 프록시 우선, 정적 서버에서
+  // 열었을 때만(요청이 404) .env.local 키로 브라우저에서 직접 호출한다.
   // 실패 시 err.status에 HTTP 상태 코드를 실어서 던진다 (401/429 등 구분용).
   // fetch 자체가 실패하면(TypeError, 네트워크/CORS 오류) status 없이 던져진다.
   // ============================================================
@@ -319,15 +394,22 @@
     // 맡긴다 — 세부 업종 칩(한식/양식 등)은 이미 keyword에 업종 단어가
     // 섞여 들어가므로(예: "한식 강남") 이걸로 충분히 좁혀진다.
     const params = new URLSearchParams({ query, page: String(page), size: '15' });
-    const res = await fetch(`https://dapi.kakao.com/v2/local/search/keyword.json?${params.toString()}`, {
-      headers: { Authorization: `KakaoAK ${KAKAO_REST_API_KEY}` },
-    });
-    if (!res.ok) {
-      const err = new Error(`키워드 검색 실패 (${res.status})`);
-      err.status = res.status;
-      throw err;
-    }
-    return res.json();
+    return fetchWithProxyFallback(
+      `/api/kakao-search?type=keyword&${params.toString()}`,
+      async () => {
+        await loadApiKey();
+        if (!hasValidApiKey()) throw configMissingError('카카오 REST API 키가 설정되지 않았어요.');
+        const res = await fetch(`https://dapi.kakao.com/v2/local/search/keyword.json?${params.toString()}`, {
+          headers: { Authorization: `KakaoAK ${KAKAO_REST_API_KEY}` },
+        });
+        if (!res.ok) {
+          const err = new Error(`키워드 검색 실패 (${res.status})`);
+          err.status = res.status;
+          throw err;
+        }
+        return res.json();
+      }
+    );
   }
 
   async function fetchCategorySearch(groupCode, coords, page){
@@ -340,23 +422,41 @@
       size: '15',
       sort: 'accuracy',
     });
-    const res = await fetch(`https://dapi.kakao.com/v2/local/search/category.json?${params.toString()}`, {
-      headers: { Authorization: `KakaoAK ${KAKAO_REST_API_KEY}` },
-    });
-    if (!res.ok) {
-      const err = new Error(`카테고리 검색 실패 (${res.status})`);
-      err.status = res.status;
-      throw err;
-    }
-    return res.json();
+    return fetchWithProxyFallback(
+      `/api/kakao-search?type=category&${params.toString()}`,
+      async () => {
+        await loadApiKey();
+        if (!hasValidApiKey()) throw configMissingError('카카오 REST API 키가 설정되지 않았어요.');
+        const res = await fetch(`https://dapi.kakao.com/v2/local/search/category.json?${params.toString()}`, {
+          headers: { Authorization: `KakaoAK ${KAKAO_REST_API_KEY}` },
+        });
+        if (!res.ok) {
+          const err = new Error(`카테고리 검색 실패 (${res.status})`);
+          err.status = res.status;
+          throw err;
+        }
+        return res.json();
+      }
+    );
+  }
+
+  // configMissing 플래그가 있는 에러 — "네트워크/서버 문제"가 아니라 "키
+  // 자체가 없다"는 걸 구분해서 설정 필요 상태로 안내하기 위함
+  function configMissingError(message){
+    const err = new Error(message);
+    err.configMissing = true;
+    return err;
   }
 
   // ============================================================
   // 에러 메시지 매핑 — 네트워크 오류 / 401(키 오류) / 429(요청 과다) / 기타 구분
   // ============================================================
   function errorMessageFor(err){
+    if (err && err.configMissing) {
+      return '카카오 REST API 키를 설정해야 검색할 수 있어요. (로컬: .env.local.example 참고 / Vercel: KAKAO_REST_API_KEY 환경변수 등록 후 재배포)';
+    }
     if (err && err.status === 401) {
-      return 'API 키가 올바르지 않아요. .env.local의 KAKAO_REST_API_KEY 값을 확인해주세요.';
+      return 'API 키가 올바르지 않아요. (로컬: .env.local의 KAKAO_REST_API_KEY 값 확인 / Vercel: 환경변수 값 확인)';
     }
     if (err && err.status === 429) {
       return '요청이 너무 많아요. 잠시 후 다시 시도해주세요.';
@@ -380,14 +480,10 @@
     const combinedQuery = [cat.keyword, rawInput].filter(Boolean).join(' ').trim();
 
     hideLocationNotice();
-    await loadApiKey();
-    if (!hasValidApiKey()) {
-      resultStatus.textContent = '.env.local에 카카오 REST API 키를 설정해야 검색할 수 있어요. (.env.local.example 참고, 로컬 정적 서버로 열었는지도 확인하세요)';
-      renderConfigNeededState();
-      loadMoreBtn.classList.add('hidden');
-      return;
-    }
-
+    // 키 유효성은 더 이상 여기서 미리 검사하지 않는다 — fetchKeywordSearch/
+    // fetchCategorySearch가 우선 /api 프록시를 시도하므로, 프로덕션에서는
+    // 로컬 .env.local이 없어도(당연히 없다) 정상 동작해야 한다. 프록시도
+    // 로컬 폴백도 다 실패했을 때만 catch에서 configMissing으로 구분해 안내한다.
     currentPage = 1;
     loadMoreBtn.classList.add('hidden');
 
@@ -458,12 +554,16 @@
     locationNotice.classList.add('hidden');
   }
 
-  // 첫 검색(전체 교체) 실패 시 사용 — 기존 카드 목록을 에러 상태로 교체
+  // 첫 검색(전체 교체) 실패 시 사용 — 기존 카드 목록을 에러/설정 필요 상태로 교체
   function showError(err){
     console.error(err);
     const message = errorMessageFor(err);
     resultStatus.textContent = message;
-    renderErrorState(message);
+    if (err && err.configMissing) {
+      renderConfigNeededState();
+    } else {
+      renderErrorState(message);
+    }
     loadMoreBtn.classList.add('hidden');
   }
 
@@ -494,13 +594,20 @@
   // 검색 결과 카드 렌더링 (데이터 우선 렌더링 — createElement/템플릿 문자열)
   // 카카오 API에는 별점/리뷰수가 없으므로 실제 필드만 사용:
   // place_name, category_name, road_address_name/address_name, phone, place_url
+  //
+  // 카드 전체가 클릭 가능 — 클릭하면 구글 리뷰 모달이 열린다(openReviewModal).
+  // 카카오맵 링크만 클릭 시 stopPropagation으로 예외 처리해 별도로 새 탭 이동.
   // ============================================================
   function placeCard(place){
     const card = document.createElement('article');
-    card.className = 'place-card bg-white rounded-card shadow-card hover:shadow-hover hover:-translate-y-1 transition-all duration-[240ms] ease-out p-6 flex flex-col gap-3';
+    card.className = 'place-card bg-white rounded-card shadow-card hover:shadow-hover hover:-translate-y-1 transition-all duration-[240ms] ease-out p-6 flex flex-col gap-3 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-honey focus-visible:ring-offset-2';
+    card.setAttribute('role', 'button');
+    card.setAttribute('tabindex', '0');
+    card.setAttribute('aria-haspopup', 'dialog');
 
     const address = place.road_address_name || place.address_name || '주소 정보 없음';
     const category = (place.category_name || '').split(' > ').pop() || '카테고리 정보 없음';
+    card.setAttribute('aria-label', `${place.place_name || '이름 정보 없음'} — 구글 리뷰 보기`);
 
     card.innerHTML = `
       <div>
@@ -518,13 +625,30 @@
           <span>${escapeHtml(place.phone)}</span>
         </p>` : ''}
       </div>
+      <div class="flex items-center gap-1.5 text-sm font-medium text-blueberry">
+        <i data-lucide="star" class="w-4 h-4" aria-hidden="true"></i>
+        <span>구글 리뷰 보기</span>
+      </div>
       ${place.place_url ? `
       <div class="pt-3 mt-1 border-t border-wheat/60">
-        <a href="${place.place_url}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 text-sm font-medium text-blueberry hover:text-cocoa transition-colors duration-200 rounded-control focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-honey focus-visible:ring-offset-2">
+        <a href="${place.place_url}" target="_blank" rel="noopener" data-kakao-map-link class="inline-flex items-center gap-1 text-sm font-medium text-blueberry hover:text-cocoa transition-colors duration-200 rounded-control focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-honey focus-visible:ring-offset-2">
           카카오맵에서 보기 <span aria-hidden="true">→</span>
         </a>
       </div>` : ''}
     `;
+
+    const kakaoLink = card.querySelector('[data-kakao-map-link]');
+    if (kakaoLink) {
+      kakaoLink.addEventListener('click', (e) => e.stopPropagation());
+    }
+    card.addEventListener('click', () => openReviewModal(place));
+    card.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        openReviewModal(place);
+      }
+    });
+
     return card;
   }
 
@@ -611,7 +735,7 @@
     resultGrid.appendChild(centeredStateBlock({
       icon: 'key-round',
       title: '검색 기능을 사용할 수 없어요',
-      desc: '.env.local에 카카오 REST API 키를 설정해야 검색할 수 있어요. (.env.local.example 참고)',
+      desc: '카카오 REST API 키를 설정해야 검색할 수 있어요. (로컬: .env.local.example 참고 / Vercel: KAKAO_REST_API_KEY 환경변수 등록 후 재배포)',
     }));
     if (window.lucide) lucide.createIcons();
   }
@@ -627,6 +751,261 @@
   }
 
   // ============================================================
+  // 구글 리뷰 조회 — /api/google-reviews 프록시 우선, 정적 서버에서 열었을
+  // 때만(요청이 404) .env.local의 GOOGLE_PLACES_API_KEY로 브라우저에서
+  // Google Places API (New)를 직접 호출한다. 두 경로 모두 필드는 딱 5개
+  // (가게 이름/별점/리뷰 개수/리뷰 내용/구글맵 링크)로 제한되고, 좌표
+  // 기준 150m(도보 2분) 반경 안의 가게만 찾도록 locationRestriction을 건다.
+  // ============================================================
+  async function fetchGoogleReviews(place){
+    const lat = Number(place.y); // 카카오 규약: y = 위도
+    const lng = Number(place.x); // 카카오 규약: x = 경도
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      throw configMissingError('가게 좌표 정보가 없어 리뷰를 찾을 수 없어요.');
+    }
+    const params = new URLSearchParams({ name: place.place_name || '', lat: String(lat), lng: String(lng) });
+    const data = await fetchWithProxyFallback(
+      `/api/google-reviews?${params.toString()}`,
+      async () => {
+        await loadApiKey();
+        if (!hasValidGoogleApiKey()) throw configMissingError('Google Places API 키가 설정되지 않았어요.');
+        const res = await fetch('https://places.googleapis.com/v1/places:searchText', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Goog-Api-Key': GOOGLE_PLACES_API_KEY,
+            'X-Goog-FieldMask': 'places.displayName,places.rating,places.userRatingCount,places.reviews,places.googleMapsUri',
+          },
+          body: JSON.stringify({
+            textQuery: place.place_name || '',
+            languageCode: 'ko',
+            maxResultCount: 1,
+            locationRestriction: { circle: { center: { latitude: lat, longitude: lng }, radius: 150 } },
+          }),
+        });
+        if (!res.ok) {
+          const err = new Error(`구글 리뷰 조회 실패 (${res.status})`);
+          err.status = res.status;
+          throw err;
+        }
+        return res.json();
+      }
+    );
+    const places = (data && data.places) || [];
+    if (places.length === 0) return null; // 반경 안에서 못 찾음 — 예외가 아니라 정상적인 "없음" 결과
+    return normalizeGooglePlace(places[0]);
+  }
+
+  // 구글 원본 응답을 화면에서 바로 쓰기 좋은 형태 하나로 정리한다
+  function normalizeGooglePlace(p){
+    return {
+      name: (p.displayName && p.displayName.text) || '',
+      rating: typeof p.rating === 'number' ? p.rating : null,
+      reviewCount: typeof p.userRatingCount === 'number' ? p.userRatingCount : 0,
+      reviews: (p.reviews || []).map((rv) => ({
+        author: (rv.authorAttribution && rv.authorAttribution.displayName) || '익명',
+        rating: typeof rv.rating === 'number' ? rv.rating : null,
+        relativeTime: rv.relativePublishTimeDescription || '',
+        text: (rv.text && rv.text.text) || (rv.originalText && rv.originalText.text) || '',
+      })),
+      mapsUri: p.googleMapsUri || null,
+    };
+  }
+
+  function googleErrorMessageFor(err){
+    if (err && err.configMissing) {
+      return 'Google 리뷰 기능을 사용할 수 없어요. (로컬: .env.local.example 참고 / Vercel: GOOGLE_PLACES_API_KEY 환경변수 등록 후 재배포)';
+    }
+    if (err && (err.status === 401 || err.status === 403)) {
+      return 'Google Places API 키가 올바르지 않거나 이 환경에서 허용되지 않았어요.';
+    }
+    if (err && err.status === 429) {
+      return '리뷰 요청이 너무 많아요. 잠시 후 다시 시도해주세요.';
+    }
+    if (err && typeof err.status === 'number') {
+      return `리뷰를 불러오지 못했어요. (오류 코드 ${err.status})`;
+    }
+    if (err instanceof TypeError) {
+      return '네트워크 연결을 확인해주세요.';
+    }
+    return '리뷰를 불러오는 중 문제가 발생했어요. 잠시 후 다시 시도해주세요.';
+  }
+
+  // ============================================================
+  // 리뷰 캐시 — 한 번 조회한 가게는 localStorage에 기억해뒀다가 같은 가게를
+  // 다시 클릭하면 구글에 재요청하지 않는다. "못 찾음"도 캐싱하되(반복 클릭
+  // 낭비 방지), 찾은 결과보다 훨씬 짧은 TTL을 둔다 — 신규 등록/오검색
+  // 가능성이 있어 너무 오래 "못 찾음"으로 고정되면 안 되기 때문.
+  // ============================================================
+  const REVIEW_CACHE_PREFIX = 'mb_google_review:';
+  const CACHE_TTL_FOUND_MS = 30 * 24 * 60 * 60 * 1000; // 30일
+  const CACHE_TTL_NOT_FOUND_MS = 3 * 24 * 60 * 60 * 1000; // 3일
+
+  function reviewCacheKey(place){
+    return place.id ? `id:${place.id}` : `pos:${place.place_name}|${place.x}|${place.y}`;
+  }
+
+  function getCachedReview(place){
+    try {
+      const raw = localStorage.getItem(REVIEW_CACHE_PREFIX + reviewCacheKey(place));
+      if (!raw) return null;
+      const entry = JSON.parse(raw);
+      const ttl = entry.status === 'found' ? CACHE_TTL_FOUND_MS : CACHE_TTL_NOT_FOUND_MS;
+      if (Date.now() - entry.cachedAt > ttl) return null; // 만료 → 캐시 없는 것으로 취급
+      return entry;
+    } catch (err) {
+      return null; // 파싱 실패 등은 캐시 미스로 취급
+    }
+  }
+
+  function setCachedReview(place, status, data){
+    try {
+      localStorage.setItem(REVIEW_CACHE_PREFIX + reviewCacheKey(place), JSON.stringify({
+        status, data: data || null, cachedAt: Date.now(),
+      }));
+    } catch (err) {
+      console.warn('리뷰 캐시 저장 실패(localStorage 용량 초과 등)', err);
+    }
+  }
+
+  // ============================================================
+  // 구글 리뷰 모달 — 로딩 / 정상 / 못 찾음 / 에러 / 설정 필요 5개 상태
+  // (기존 centeredStateBlock/스켈레톤과 같은 톤으로 직접 렌더링)
+  // ============================================================
+  function renderModalLoading(placeName){
+    reviewModalBody.innerHTML = `
+      <h2 id="review-modal-title" class="font-title font-medium text-lg text-cocoa mb-4 pr-8">${escapeHtml(placeName || '')}</h2>
+      <div class="flex flex-col gap-3">
+        <div class="skeleton skeleton-pulse h-5 w-24"></div>
+        <div class="skeleton skeleton-pulse h-4 w-40"></div>
+      </div>
+      <p class="text-sm text-bark mt-4">리뷰를 불러오는 중…</p>
+    `;
+  }
+
+  function renderModalResult(place, result){
+    const reviewsHtml = result.reviews.length
+      ? result.reviews.map((rv) => `
+        <li class="py-4 border-t border-wheat/60 first:border-t-0 first:pt-0">
+          <div class="flex items-center justify-between gap-2 mb-1">
+            <span class="font-medium text-cocoa text-sm">${escapeHtml(rv.author)}</span>
+            <span class="text-xs text-bark">${escapeHtml(rv.relativeTime)}</span>
+          </div>
+          <div class="text-xs text-honey mb-1.5" aria-hidden="true">${'★'.repeat(Math.round(rv.rating || 0))}</div>
+          <p class="text-sm text-cocoa leading-[1.6]">${escapeHtml(rv.text)}</p>
+        </li>
+      `).join('')
+      : `<li class="py-4 text-sm text-bark">등록된 리뷰가 없어요.</li>`;
+
+    reviewModalBody.innerHTML = `
+      <h2 id="review-modal-title" class="font-title font-medium text-lg text-cocoa mb-2 pr-8">${escapeHtml(result.name || place.place_name || '')}</h2>
+      <div class="flex items-center gap-3 text-sm mb-5">
+        ${result.rating != null ? `<span class="flex items-center gap-1"><span class="text-honey" aria-hidden="true">★</span><span class="font-medium text-cocoa tabular-nums">${result.rating.toFixed(1)}</span></span>` : ''}
+        <span class="text-bark">리뷰 ${result.reviewCount}개</span>
+      </div>
+      <ul>${reviewsHtml}</ul>
+      ${result.mapsUri ? `
+      <div class="pt-4 mt-2 border-t border-wheat/60">
+        <a href="${result.mapsUri}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 text-sm font-medium text-blueberry hover:text-cocoa transition-colors duration-200 rounded-control focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-honey focus-visible:ring-offset-2">
+          구글 맵에서 전체 리뷰 보기 <span aria-hidden="true">→</span>
+        </a>
+      </div>` : ''}
+    `;
+  }
+
+  function renderModalNotFound(place){
+    reviewModalBody.innerHTML = `
+      <h2 id="review-modal-title" class="font-title font-medium text-lg text-cocoa mb-4 pr-8">${escapeHtml(place.place_name || '')}</h2>
+      <div class="flex flex-col items-center text-center py-8">
+        <i data-lucide="search-x" class="w-10 h-10 text-bark/50 mb-4" aria-hidden="true"></i>
+        <p class="font-title font-medium text-base text-cocoa mb-1">구글에서 이 가게를 찾지 못했어요</p>
+        <p class="text-sm text-bark max-w-xs">가게 이름이나 위치가 구글 지도 등록 정보와 달라서일 수 있어요.</p>
+      </div>
+    `;
+  }
+
+  function renderModalError(place, message){
+    reviewModalBody.innerHTML = `
+      <h2 id="review-modal-title" class="font-title font-medium text-lg text-cocoa mb-4 pr-8">${escapeHtml(place.place_name || '')}</h2>
+      <div class="flex flex-col items-center text-center py-8">
+        <i data-lucide="alert-triangle" class="w-10 h-10 text-blueberry/70 mb-4" aria-hidden="true"></i>
+        <p class="font-title font-medium text-base text-cocoa mb-1">리뷰를 불러오지 못했어요</p>
+        <p class="text-sm text-bark max-w-xs">${escapeHtml(message)}</p>
+      </div>
+    `;
+  }
+
+  function renderModalConfigNeeded(place, message){
+    reviewModalBody.innerHTML = `
+      <h2 id="review-modal-title" class="font-title font-medium text-lg text-cocoa mb-4 pr-8">${escapeHtml(place.place_name || '')}</h2>
+      <div class="flex flex-col items-center text-center py-8">
+        <i data-lucide="key-round" class="w-10 h-10 text-bark/50 mb-4" aria-hidden="true"></i>
+        <p class="font-title font-medium text-base text-cocoa mb-1">구글 리뷰 기능을 사용할 수 없어요</p>
+        <p class="text-sm text-bark max-w-xs">${escapeHtml(message)}</p>
+      </div>
+    `;
+  }
+
+  // ============================================================
+  // 모달 열기/닫기 — 열 때 트리거를 기억해뒀다 닫을 때 포커스를 되돌리고,
+  // 배경 스크롤을 잠그고, Escape/배경 클릭/닫기 버튼으로 닫는다.
+  // ============================================================
+  let reviewModalLastFocused = null;
+
+  function openReviewModal(place){
+    reviewModalLastFocused = document.activeElement;
+    reviewModalOverlay.classList.remove('hidden');
+    reviewModalOverlay.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', onReviewModalKeydown);
+    renderModalLoading(place.place_name);
+    reviewModal.focus();
+    loadAndRenderReviews(place);
+  }
+
+  function closeReviewModal(){
+    reviewModalOverlay.classList.add('hidden');
+    reviewModalOverlay.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+    document.removeEventListener('keydown', onReviewModalKeydown);
+    if (reviewModalLastFocused && typeof reviewModalLastFocused.focus === 'function') {
+      reviewModalLastFocused.focus();
+    }
+  }
+
+  function onReviewModalKeydown(e){
+    if (e.key === 'Escape') closeReviewModal();
+  }
+
+  async function loadAndRenderReviews(place){
+    const cached = getCachedReview(place);
+    if (cached) {
+      if (cached.status === 'found') renderModalResult(place, cached.data);
+      else renderModalNotFound(place);
+      if (window.lucide) lucide.createIcons();
+      return;
+    }
+    try {
+      const result = await fetchGoogleReviews(place);
+      if (result) {
+        setCachedReview(place, 'found', result);
+        renderModalResult(place, result);
+      } else {
+        setCachedReview(place, 'not_found', null);
+        renderModalNotFound(place);
+      }
+    } catch (err) {
+      console.error(err);
+      if (err && err.configMissing) {
+        renderModalConfigNeeded(place, googleErrorMessageFor(err));
+      } else {
+        renderModalError(place, googleErrorMessageFor(err));
+      }
+    }
+    if (window.lucide) lucide.createIcons();
+  }
+
+  // ============================================================
   // 이벤트 바인딩
   // ============================================================
   searchForm.addEventListener('submit', (e) => {
@@ -635,6 +1014,11 @@
   });
 
   loadMoreBtn.addEventListener('click', loadMore);
+
+  reviewModalClose.addEventListener('click', closeReviewModal);
+  reviewModalOverlay.addEventListener('click', (e) => {
+    if (e.target === reviewModalOverlay) closeReviewModal(); // 배경 클릭(모달 내부 클릭은 버블링만 될 뿐 대상이 다름)
+  });
 
   // ============================================================
   // 초기 진입: URL 쿼리 파라미터 ?q=검색어 → 자동 키워드 검색
