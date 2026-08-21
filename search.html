@@ -60,6 +60,14 @@
           cocoa: '#2E2620',
           blueberry: '#35566B',
           'slate-mist': '#B9CAD4',
+          // AI 분석(감성 비율 막대/워드클라우드) 전용 — 기존 Wheat는 Honey와
+          // 너무 가까워(대비 검증 실패) "보통"의 중립색으로 못 씀. Honey/
+          // Blueberry는 그대로 두고 중립 회색 하나만 새로 추가.
+          ash: '#9B948A',
+          // 워드클라우드에서 긍정 단어의 "글자색"으로 쓸 진한 톤 — 원래
+          // Honey(#E9A227)는 흰 배경 대비 2.17:1로 텍스트로 쓰면 안 읽힘
+          // (DESIGN.md 규칙과 동일한 이유), 그래서 텍스트 전용으로 더 진하게.
+          'honey-ink': '#9C6410',
         },
         fontFamily: {
           title: ['GmarketSans', 'Pretendard', 'sans-serif'],
@@ -254,6 +262,7 @@
   // (= 정적 서버로 열었을 때만) 이 키들을 로드해서 API를 직접 호출한다.
   let KAKAO_REST_API_KEY = null;
   let GOOGLE_PLACES_API_KEY = null;
+  let GEMINI_API_KEY = null;
   let apiKeyLoadAttempted = false;
 
   let activeCategoryId = 'all';
@@ -318,6 +327,7 @@
         const value = trimmed.slice(eqIdx + 1).trim();
         if (key === 'KAKAO_REST_API_KEY') KAKAO_REST_API_KEY = value;
         if (key === 'GOOGLE_PLACES_API_KEY') GOOGLE_PLACES_API_KEY = value;
+        if (key === 'GEMINI_API_KEY') GEMINI_API_KEY = value;
       });
     } catch (err) {
       console.error('.env.local 로드 실패', err);
@@ -336,16 +346,22 @@
       && GOOGLE_PLACES_API_KEY !== 'YOUR_GOOGLE_PLACES_API_KEY';
   }
 
+  function hasValidGeminiApiKey(){
+    return typeof GEMINI_API_KEY === 'string'
+      && GEMINI_API_KEY.trim() !== ''
+      && GEMINI_API_KEY !== 'YOUR_GEMINI_API_KEY';
+  }
+
   // ============================================================
   // 프록시 우선(/api/...) → 404·네트워크 실패 시에만 로컬 폴백으로 전환.
   // 프록시가 실존하며 에러(401/429/5xx)를 준 경우는 폴백하지 않고 그
   // 에러를 그대로 위로 던진다 — 폴백해봤자 같은 업스트림을 다시 때릴
   // 뿐이고, 프로덕션에는 애초에 .env.local이 없어 혼란만 커진다.
   // ============================================================
-  async function fetchWithProxyFallback(proxyUrl, directFallback){
+  async function fetchWithProxyFallback(proxyUrl, directFallback, fetchOptions){
     let proxyReachable = true;
     try {
-      const res = await fetch(proxyUrl);
+      const res = await fetch(proxyUrl, fetchOptions);
       if (res.status === 404) {
         proxyReachable = false; // 이 환경엔 서버리스 함수가 없다(정적 서버) → 폴백
       } else if (!res.ok) {
@@ -888,6 +904,241 @@
   }
 
   // ============================================================
+  // AI 리뷰 분석 — /api/analyze-reviews 프록시 우선, 정적 서버에서 열었을
+  // 때만(요청이 404) .env.local의 GEMINI_API_KEY로 브라우저에서 Gemini를
+  // 직접 호출한다. 리뷰가 다 뜨면(renderModalResult) 자동으로 이어서
+  // 시작되고, 결과는 리뷰 캐시와 같은 키(place.id)로 localStorage에
+  // 저장해뒀다가 재클릭 시 재요청 없이 바로 보여준다(크레딧 절약).
+  // ============================================================
+  const AI_ANALYSIS_CACHE_PREFIX = 'mb_ai_analysis:';
+
+  const AI_ANALYSIS_SCHEMA = {
+    type: 'object',
+    properties: {
+      sentimentCounts: {
+        type: 'object',
+        properties: {
+          positive: { type: 'integer' },
+          neutral: { type: 'integer' },
+          negative: { type: 'integer' },
+        },
+        required: ['positive', 'neutral', 'negative'],
+      },
+      keywords: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            word: { type: 'string' },
+            score: { type: 'integer' },
+            sentiment: { type: 'string', enum: ['positive', 'negative'] },
+          },
+          required: ['word', 'score', 'sentiment'],
+        },
+      },
+      summary: { type: 'string' },
+    },
+    required: ['sentimentCounts', 'keywords', 'summary'],
+  };
+
+  // api/analyze-reviews.js와 같은 프롬프트 — 로컬 폴백(브라우저 직접 호출)에서도
+  // 동일한 분석 품질을 내기 위해 그대로 맞춰둔다.
+  function buildAnalysisPrompt(placeName, reviews){
+    const reviewsText = reviews
+      .map((r, i) => `${i + 1}. (별점 ${r.rating ?? '?'}점) ${r.text || '(내용 없음)'}`)
+      .join('\n');
+    return `당신은 맛집 리뷰 분석가입니다. 아래는 "${placeName}"의 구글 리뷰 ${reviews.length}개입니다.
+
+${reviewsText}
+
+다음을 분석해 JSON으로만 답하세요:
+1. 각 리뷰를 긍정/보통/부정 중 하나로 분류하고, 전체 개수를 센다(sentimentCounts). 세 개수의 합은 리뷰 총 개수(${reviews.length})와 같아야 한다.
+2. 리뷰에서 자주 언급되는 핵심 단어를 8~15개 뽑는다(keywords). 음식 이름, 맛, 분위기, 서비스 관련 단어 위주로 고르고, 각 단어마다 중요도(score, 1~10점, 자주 언급되고 리뷰 전체 인상에 중요할수록 높게)와 맥락(sentiment, 좋은 맥락이면 positive, 나쁜 맥락이면 negative)을 함께 매긴다.
+3. 전체 리뷰를 바탕으로 이 가게에 대한 총평을 한국어 한 문장(summary)으로 요약한다.`;
+  }
+
+  async function fetchAiAnalysis(place, reviews){
+    const requestBody = JSON.stringify({
+      placeName: place.place_name || '',
+      reviews: reviews.map((rv) => ({ rating: rv.rating, text: rv.text })),
+    });
+    return fetchWithProxyFallback(
+      '/api/analyze-reviews',
+      async () => {
+        await loadApiKey();
+        if (!hasValidGeminiApiKey()) throw configMissingError('Gemini API 키가 설정되지 않았어요.');
+        const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_API_KEY },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: buildAnalysisPrompt(place.place_name || '', reviews) }] }],
+            generationConfig: { responseMimeType: 'application/json', responseSchema: AI_ANALYSIS_SCHEMA },
+          }),
+        });
+        if (!res.ok) {
+          const err = new Error(`AI 분석 실패 (${res.status})`);
+          err.status = res.status;
+          throw err;
+        }
+        const data = await res.json();
+        const text = data && data.candidates && data.candidates[0]
+          && data.candidates[0].content && data.candidates[0].content.parts
+          && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text;
+        if (!text) throw new Error('Gemini가 분석 결과를 반환하지 않았어요.');
+        return JSON.parse(text);
+      },
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: requestBody }
+    );
+  }
+
+  function aiErrorMessageFor(err){
+    if (err && err.configMissing) {
+      return 'Gemini API 키가 설정되지 않았어요. (로컬: .env.local.example 참고 / Vercel: GEMINI_API_KEY 환경변수 등록 후 재배포)';
+    }
+    if (err && (err.status === 401 || err.status === 403)) {
+      return 'Gemini API 키가 올바르지 않아요.';
+    }
+    if (err && err.status === 429) {
+      return '요청이 너무 많아요. 잠시 후 다시 시도해주세요.';
+    }
+    return '잠시 후 다시 시도해주세요.';
+  }
+
+  function getCachedAnalysis(place){
+    try {
+      const raw = localStorage.getItem(AI_ANALYSIS_CACHE_PREFIX + reviewCacheKey(place));
+      if (!raw) return null;
+      const entry = JSON.parse(raw);
+      if (Date.now() - entry.cachedAt > CACHE_TTL_FOUND_MS) return null;
+      return entry.data;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  function setCachedAnalysis(place, data){
+    try {
+      localStorage.setItem(AI_ANALYSIS_CACHE_PREFIX + reviewCacheKey(place), JSON.stringify({
+        data, cachedAt: Date.now(),
+      }));
+    } catch (err) {
+      console.warn('AI 분석 캐시 저장 실패(localStorage 용량 초과 등)', err);
+    }
+  }
+
+  // #review-modal-analysis 컨테이너는 renderModalResult가 리뷰가 1개 이상일
+  // 때만 만들어 둔다(리뷰 0개면 이 함수 자체가 호출되지 않음 — 요구사항 7).
+  function renderAnalysisLoading(){
+    const el = document.getElementById('review-modal-analysis');
+    if (!el) return;
+    el.innerHTML = `
+      <div class="flex items-center gap-2 mb-3">
+        <i data-lucide="sparkles" class="w-4 h-4 text-honey" aria-hidden="true"></i>
+        <span class="text-sm font-medium text-cocoa">AI가 리뷰를 분석하는 중…</span>
+      </div>
+      <div class="flex flex-col gap-2">
+        <div class="skeleton skeleton-pulse h-3 w-full rounded-full"></div>
+        <div class="skeleton skeleton-pulse h-14 w-full"></div>
+      </div>
+    `;
+    if (window.lucide) lucide.createIcons();
+  }
+
+  function renderAnalysisResult(data){
+    const el = document.getElementById('review-modal-analysis');
+    if (!el) return;
+
+    const counts = (data && data.sentimentCounts) || {};
+    const positive = Math.max(0, counts.positive || 0);
+    const neutral = Math.max(0, counts.neutral || 0);
+    const negative = Math.max(0, counts.negative || 0);
+    const total = positive + neutral + negative || 1; // 0으로 나누기 방지
+    const pct = (n) => Math.round((n / total) * 100);
+
+    // 긍정=Honey / 보통=Ash(중립 회색) / 부정=Blueberry — DESIGN.md 브랜드 팔레트.
+    // (dataviz 접근성 검증 결과 Wheat는 Honey와 너무 가까워 중립색으로 못 씀 —
+    // Ash를 새로 추가함. 자세한 근거는 tailwind.config의 ash/honey-ink 주석 참고)
+    const segments = [
+      { label: '긍정', count: positive, pct: pct(positive), colorClass: 'bg-honey' },
+      { label: '보통', count: neutral, pct: pct(neutral), colorClass: 'bg-ash' },
+      { label: '부정', count: negative, pct: pct(negative), colorClass: 'bg-blueberry' },
+    ].filter((s) => s.count > 0); // 0개인 감성은 막대·범례에서 생략(0폭 세그먼트는 무의미)
+
+    const barHtml = segments.map((s, i) => {
+      const roundedClass = segments.length === 1 ? 'rounded-full'
+        : i === 0 ? 'rounded-l-full' : i === segments.length - 1 ? 'rounded-r-full' : '';
+      // 세그먼트 사이 2px 흰 여백으로 구분(테두리 대신 — dataviz 스킬 마크 스펙)
+      const gapClass = i < segments.length - 1 ? 'border-r-2 border-white' : '';
+      return `<div class="${s.colorClass} ${roundedClass} ${gapClass} h-full" style="width:${s.pct}%" title="${s.label} ${s.count}개 (${s.pct}%)"></div>`;
+    }).join('');
+
+    const legendHtml = segments.map((s) => `
+      <span class="inline-flex items-center gap-1.5 text-xs text-bark">
+        <span class="w-2.5 h-2.5 rounded-full ${s.colorClass} flex-shrink-0" aria-hidden="true"></span>
+        ${s.label} ${s.count}개(${s.pct}%)
+      </span>
+    `).join('');
+
+    const keywords = Array.isArray(data && data.keywords) ? data.keywords : [];
+    const wordCloudHtml = keywords.map((k) => {
+      const score = Math.min(10, Math.max(1, Number(k.score) || 1));
+      const fontSize = (13 + ((score - 1) / 9) * 17).toFixed(1); // 13px~30px 선형 매핑
+      // 좋은 맥락=Honey 계열(글자 대비를 위해 진하게 한 honey-ink), 나쁜 맥락=Blueberry
+      const colorClass = k.sentiment === 'negative' ? 'text-blueberry' : 'text-honey-ink';
+      const weight = score >= 6 ? 'font-semibold' : 'font-medium';
+      return `<span class="${colorClass} ${weight}" style="font-size:${fontSize}px; line-height:1.2" title="중요도 ${score}/10">${escapeHtml(k.word)}</span>`;
+    }).join(' ');
+
+    el.innerHTML = `
+      <div class="flex items-center gap-2 mb-3">
+        <i data-lucide="sparkles" class="w-4 h-4 text-honey" aria-hidden="true"></i>
+        <span class="text-sm font-medium text-cocoa">AI 리뷰 분석</span>
+      </div>
+      <div class="h-3 w-full rounded-full overflow-hidden bg-ivory flex">${barHtml}</div>
+      <div class="flex flex-wrap gap-x-4 gap-y-1 mt-2.5">${legendHtml}</div>
+      ${keywords.length ? `
+      <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1.5 justify-center py-5 mt-3 bg-ivory/60 rounded-card">${wordCloudHtml}</div>
+      ` : ''}
+      ${data && data.summary ? `
+      <div class="relative bg-honey-soft text-cocoa text-sm leading-[1.6] rounded-card px-4 py-3 mt-3">
+        “${escapeHtml(data.summary)}”
+        <span class="absolute -bottom-1.5 left-6 w-3 h-3 bg-honey-soft rotate-45" aria-hidden="true"></span>
+      </div>
+      ` : ''}
+    `;
+    if (window.lucide) lucide.createIcons();
+  }
+
+  function renderAnalysisError(message){
+    const el = document.getElementById('review-modal-analysis');
+    if (!el) return;
+    el.innerHTML = `
+      <div class="flex items-center gap-2 text-sm text-bark">
+        <i data-lucide="alert-triangle" class="w-4 h-4 text-blueberry/70 flex-shrink-0" aria-hidden="true"></i>
+        <span>AI 분석을 불러오지 못했어요. ${escapeHtml(message)}</span>
+      </div>
+    `;
+    if (window.lucide) lucide.createIcons();
+  }
+
+  async function loadAndRenderAnalysis(place, reviews){
+    const cached = getCachedAnalysis(place);
+    if (cached) {
+      renderAnalysisResult(cached);
+      return;
+    }
+    renderAnalysisLoading();
+    try {
+      const data = await fetchAiAnalysis(place, reviews);
+      setCachedAnalysis(place, data);
+      renderAnalysisResult(data);
+    } catch (err) {
+      console.error(err);
+      renderAnalysisError(aiErrorMessageFor(err));
+    }
+  }
+
+  // ============================================================
   // 구글 리뷰 모달 — 로딩 / 정상 / 못 찾음 / 에러 / 설정 필요 5개 상태
   // (기존 centeredStateBlock/스켈레톤과 같은 톤으로 직접 렌더링)
   // ============================================================
@@ -936,7 +1187,14 @@
       `).join('')
       : `<li class="py-4 text-sm text-bark">등록된 리뷰가 없어요.</li>`;
 
+    // 리뷰가 하나도 없으면 분석 영역 자체를 만들지 않는다(요구사항 7) —
+    // loadAndRenderAnalysis도 호출하지 않음(아래).
+    const analysisPlaceholder = result.reviews.length > 0
+      ? `<div id="review-modal-analysis" class="pb-5 mb-5 border-b border-wheat/60"></div>`
+      : '';
+
     reviewModalScroll.innerHTML = `
+      ${analysisPlaceholder}
       <ul class="pt-2">${reviewsHtml}</ul>
       ${result.mapsUri ? `
       <div class="pt-4 mt-2 border-t border-wheat/60">
@@ -946,6 +1204,11 @@
       </div>` : ''}
     `;
     reviewModalScroll.scrollTop = 0;
+
+    // 리뷰가 다 뜬 직후 자동으로 이어서 AI 분석 시작(요구사항 3-1)
+    if (result.reviews.length > 0) {
+      loadAndRenderAnalysis(place, result.reviews);
+    }
   }
 
   function renderModalNotFound(place){
