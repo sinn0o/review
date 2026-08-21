@@ -115,12 +115,15 @@
   <header class="sticky top-0 z-50 bg-cream/90 backdrop-blur-sm border-b border-wheat/50">
     <div class="max-w-content mx-auto px-4 md:px-6 h-16 md:h-[72px] flex items-center justify-between">
       <a href="#" class="font-title font-bold text-lg text-cocoa">맛밥</a>
-      <a
-        href="search.html"
-        class="hidden sm:inline-flex items-center gap-1.5 text-sm font-medium text-blueberry hover:text-cocoa transition-colors duration-200"
-      >
-        <i data-lucide="search" class="w-4 h-4" aria-hidden="true"></i> 맛집 검색
-      </a>
+      <div class="flex items-center gap-4 md:gap-6">
+        <a
+          href="search.html"
+          class="hidden sm:inline-flex items-center gap-1.5 text-sm font-medium text-blueberry hover:text-cocoa transition-colors duration-200"
+        >
+          <i data-lucide="search" class="w-4 h-4" aria-hidden="true"></i> 맛집 검색
+        </a>
+        <div id="mb-auth-slot" data-mb-auth-slot></div>
+      </div>
     </div>
   </header>
 
@@ -240,6 +243,10 @@
 
 <!-- Lucide 아이콘 -->
 <script src="https://unpkg.com/lucide@latest"></script>
+
+<!-- Supabase 로그인/회원가입 (index.html, search.html 공용 — js/auth.js) -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/auth.js"></script>
 
 <script>
 (function(){
