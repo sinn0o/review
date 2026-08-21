@@ -201,7 +201,7 @@
       aria-modal="true"
       aria-labelledby="review-modal-title"
       tabindex="-1"
-      class="bg-white rounded-card shadow-hover w-full max-w-lg max-h-[85vh] overflow-y-auto p-6 md:p-8 relative focus:outline-none"
+      class="bg-white rounded-card shadow-hover w-full max-w-lg max-h-[85vh] flex flex-col relative focus:outline-none"
     >
       <button
         id="review-modal-close"
@@ -211,7 +211,10 @@
       >
         <i data-lucide="x" class="w-5 h-5" aria-hidden="true"></i>
       </button>
-      <div id="review-modal-body"></div>
+      <!-- 가게 이름·별점·리뷰 개수 — 스크롤 안 됨, 항상 상단 고정 -->
+      <div id="review-modal-header" class="flex-shrink-0 p-6 md:p-8 pb-4 md:pb-4 pr-14 border-b border-wheat/60"></div>
+      <!-- 리뷰 목록만 이 영역 안에서 스크롤 -->
+      <div id="review-modal-scroll" class="flex-1 min-h-0 overflow-y-auto px-6 md:px-8 pb-6 md:pb-8"></div>
     </div>
   </div>
 
@@ -269,7 +272,8 @@
   const locationNotice = document.getElementById('location-notice');
   const reviewModalOverlay = document.getElementById('review-modal-overlay');
   const reviewModal = document.getElementById('review-modal');
-  const reviewModalBody = document.getElementById('review-modal-body');
+  const reviewModalHeader = document.getElementById('review-modal-header');
+  const reviewModalScroll = document.getElementById('review-modal-scroll');
   const reviewModalClose = document.getElementById('review-modal-close');
 
   // ============================================================
@@ -887,18 +891,38 @@
   // 구글 리뷰 모달 — 로딩 / 정상 / 못 찾음 / 에러 / 설정 필요 5개 상태
   // (기존 centeredStateBlock/스켈레톤과 같은 톤으로 직접 렌더링)
   // ============================================================
+  // 헤더(가게 이름 + 별점/리뷰개수, 있으면)는 고정, 나머지 상태별 내용은
+  // #review-modal-scroll 안에서만 스크롤된다. 새 상태를 그릴 때마다
+  // 스크롤 위치를 맨 위로 되돌린다(이전 가게에서 스크롤해뒀던 위치가
+  // 다음 가게 모달에 남아있지 않도록).
+  function setModalHeader(placeName, metaHtml){
+    reviewModalHeader.innerHTML = `
+      <h2 id="review-modal-title" class="font-title font-medium text-lg text-cocoa">${escapeHtml(placeName || '')}</h2>
+      ${metaHtml || ''}
+    `;
+  }
+
   function renderModalLoading(placeName){
-    reviewModalBody.innerHTML = `
-      <h2 id="review-modal-title" class="font-title font-medium text-lg text-cocoa mb-4 pr-8">${escapeHtml(placeName || '')}</h2>
-      <div class="flex flex-col gap-3">
+    setModalHeader(placeName);
+    reviewModalScroll.innerHTML = `
+      <div class="flex flex-col gap-3 pt-4">
         <div class="skeleton skeleton-pulse h-5 w-24"></div>
         <div class="skeleton skeleton-pulse h-4 w-40"></div>
       </div>
       <p class="text-sm text-bark mt-4">리뷰를 불러오는 중…</p>
     `;
+    reviewModalScroll.scrollTop = 0;
   }
 
   function renderModalResult(place, result){
+    const metaHtml = `
+      <div class="flex items-center gap-3 text-sm mt-2">
+        ${result.rating != null ? `<span class="flex items-center gap-1"><span class="text-honey" aria-hidden="true">★</span><span class="font-medium text-cocoa tabular-nums">${result.rating.toFixed(1)}</span></span>` : ''}
+        <span class="text-bark">리뷰 ${result.reviewCount}개</span>
+      </div>
+    `;
+    setModalHeader(result.name || place.place_name, metaHtml);
+
     const reviewsHtml = result.reviews.length
       ? result.reviews.map((rv) => `
         <li class="py-4 border-t border-wheat/60 first:border-t-0 first:pt-0">
@@ -912,13 +936,8 @@
       `).join('')
       : `<li class="py-4 text-sm text-bark">등록된 리뷰가 없어요.</li>`;
 
-    reviewModalBody.innerHTML = `
-      <h2 id="review-modal-title" class="font-title font-medium text-lg text-cocoa mb-2 pr-8">${escapeHtml(result.name || place.place_name || '')}</h2>
-      <div class="flex items-center gap-3 text-sm mb-5">
-        ${result.rating != null ? `<span class="flex items-center gap-1"><span class="text-honey" aria-hidden="true">★</span><span class="font-medium text-cocoa tabular-nums">${result.rating.toFixed(1)}</span></span>` : ''}
-        <span class="text-bark">리뷰 ${result.reviewCount}개</span>
-      </div>
-      <ul>${reviewsHtml}</ul>
+    reviewModalScroll.innerHTML = `
+      <ul class="pt-2">${reviewsHtml}</ul>
       ${result.mapsUri ? `
       <div class="pt-4 mt-2 border-t border-wheat/60">
         <a href="${result.mapsUri}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 text-sm font-medium text-blueberry hover:text-cocoa transition-colors duration-200 rounded-control focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-honey focus-visible:ring-offset-2">
@@ -926,39 +945,43 @@
         </a>
       </div>` : ''}
     `;
+    reviewModalScroll.scrollTop = 0;
   }
 
   function renderModalNotFound(place){
-    reviewModalBody.innerHTML = `
-      <h2 id="review-modal-title" class="font-title font-medium text-lg text-cocoa mb-4 pr-8">${escapeHtml(place.place_name || '')}</h2>
+    setModalHeader(place.place_name);
+    reviewModalScroll.innerHTML = `
       <div class="flex flex-col items-center text-center py-8">
         <i data-lucide="search-x" class="w-10 h-10 text-bark/50 mb-4" aria-hidden="true"></i>
         <p class="font-title font-medium text-base text-cocoa mb-1">구글에서 이 가게를 찾지 못했어요</p>
         <p class="text-sm text-bark max-w-xs">가게 이름이나 위치가 구글 지도 등록 정보와 달라서일 수 있어요.</p>
       </div>
     `;
+    reviewModalScroll.scrollTop = 0;
   }
 
   function renderModalError(place, message){
-    reviewModalBody.innerHTML = `
-      <h2 id="review-modal-title" class="font-title font-medium text-lg text-cocoa mb-4 pr-8">${escapeHtml(place.place_name || '')}</h2>
+    setModalHeader(place.place_name);
+    reviewModalScroll.innerHTML = `
       <div class="flex flex-col items-center text-center py-8">
         <i data-lucide="alert-triangle" class="w-10 h-10 text-blueberry/70 mb-4" aria-hidden="true"></i>
         <p class="font-title font-medium text-base text-cocoa mb-1">리뷰를 불러오지 못했어요</p>
         <p class="text-sm text-bark max-w-xs">${escapeHtml(message)}</p>
       </div>
     `;
+    reviewModalScroll.scrollTop = 0;
   }
 
   function renderModalConfigNeeded(place, message){
-    reviewModalBody.innerHTML = `
-      <h2 id="review-modal-title" class="font-title font-medium text-lg text-cocoa mb-4 pr-8">${escapeHtml(place.place_name || '')}</h2>
+    setModalHeader(place.place_name);
+    reviewModalScroll.innerHTML = `
       <div class="flex flex-col items-center text-center py-8">
         <i data-lucide="key-round" class="w-10 h-10 text-bark/50 mb-4" aria-hidden="true"></i>
         <p class="font-title font-medium text-base text-cocoa mb-1">구글 리뷰 기능을 사용할 수 없어요</p>
         <p class="text-sm text-bark max-w-xs">${escapeHtml(message)}</p>
       </div>
     `;
+    reviewModalScroll.scrollTop = 0;
   }
 
   // ============================================================
