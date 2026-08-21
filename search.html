@@ -756,7 +756,22 @@
   // Google Places API (New)를 직접 호출한다. 두 경로 모두 필드는 딱 5개
   // (가게 이름/별점/리뷰 개수/리뷰 내용/구글맵 링크)로 제한되고, 좌표
   // 기준 150m(도보 2분) 반경 안의 가게만 찾도록 locationRestriction을 건다.
+  //
+  // ⚠️ Text Search (New)의 locationRestriction은 rectangle만 지원한다
+  // (circle을 넣으면 400 INVALID_ARGUMENT) — api/google-reviews.js와
+  // 동일하게 중심 좌표에서 반경만큼 떨어진 사각형을 계산해서 보낸다.
   // ============================================================
+  const GOOGLE_METERS_PER_DEGREE_LAT = 111320;
+
+  function googleBoundingRectangle(lat, lng, radiusMeters){
+    const latDelta = radiusMeters / GOOGLE_METERS_PER_DEGREE_LAT;
+    const lngDelta = radiusMeters / (GOOGLE_METERS_PER_DEGREE_LAT * Math.cos(lat * Math.PI / 180));
+    return {
+      low: { latitude: lat - latDelta, longitude: lng - lngDelta },
+      high: { latitude: lat + latDelta, longitude: lng + lngDelta },
+    };
+  }
+
   async function fetchGoogleReviews(place){
     const lat = Number(place.y); // 카카오 규약: y = 위도
     const lng = Number(place.x); // 카카오 규약: x = 경도
@@ -779,8 +794,8 @@
           body: JSON.stringify({
             textQuery: place.place_name || '',
             languageCode: 'ko',
-            maxResultCount: 1,
-            locationRestriction: { circle: { center: { latitude: lat, longitude: lng }, radius: 150 } },
+            pageSize: 1,
+            locationRestriction: { rectangle: googleBoundingRectangle(lat, lng, 150) },
           }),
         });
         if (!res.ok) {

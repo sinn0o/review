@@ -12,11 +12,28 @@
 // 여러 곳 있을 수 있으므로 넘겨받은 좌표 기준 150m(도보 2분) 반경
 // locationRestriction으로 서버 사이드에서 강제 필터링한다.
 //
+// ⚠️ Text Search (New)의 locationRestriction은 rectangle만 지원한다
+// (locationBias와 달리 circle을 못 받는다 — circle을 넣으면 400
+// INVALID_ARGUMENT). 그래서 중심 좌표에서 반경만큼 떨어진 사각형을
+// 직접 계산해서 보낸다(대각선 모서리는 150m보다 살짝 더 멀어질 수
+// 있지만, "도보 2분 반경"이라는 요구사항의 실용적인 근사로 충분하다).
+//
 // 정규화(화면에 바로 쓰기 좋은 형태로 다듬는 것)는 클라이언트(search.html)
 // 쪽에서 한다 — 여기서는 구글 원본 JSON을 그대로 패스스루한다.
 // ============================================================================
 
 const SEARCH_RADIUS_METERS = 150;
+const METERS_PER_DEGREE_LAT = 111320;
+
+// 위/경도 중심점 + 반경(m) → Text Search가 요구하는 rectangle(low/high) 계산
+function boundingRectangle(lat, lng, radiusMeters){
+  const latDelta = radiusMeters / METERS_PER_DEGREE_LAT;
+  const lngDelta = radiusMeters / (METERS_PER_DEGREE_LAT * Math.cos(lat * Math.PI / 180));
+  return {
+    low: { latitude: lat - latDelta, longitude: lng - lngDelta },
+    high: { latitude: lat + latDelta, longitude: lng + lngDelta },
+  };
+}
 
 module.exports = async (req, res) => {
   const GOOGLE_PLACES_API_KEY = process.env.GOOGLE_PLACES_API_KEY;
@@ -45,12 +62,9 @@ module.exports = async (req, res) => {
       body: JSON.stringify({
         textQuery: String(name),
         languageCode: 'ko',
-        maxResultCount: 1,
+        pageSize: 1,
         locationRestriction: {
-          circle: {
-            center: { latitude, longitude },
-            radius: SEARCH_RADIUS_METERS,
-          },
+          rectangle: boundingRectangle(latitude, longitude, SEARCH_RADIUS_METERS),
         },
       }),
     });
