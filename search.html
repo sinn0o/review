@@ -1082,10 +1082,13 @@ ${reviewsText}
     const keywords = Array.isArray(data && data.keywords) ? data.keywords : [];
     const wordCloudHtml = keywords.map((k) => {
       const score = Math.min(10, Math.max(1, Number(k.score) || 1));
-      const fontSize = (13 + ((score - 1) / 9) * 17).toFixed(1); // 13px~30px 선형 매핑
+      // 11px~40px, 지수 커브(^1.6)로 매핑 — 선형보다 저점수/고점수 격차를
+      // 과장해서 "중요한 단어일수록 확실히 크게" 보이게 한다.
+      const t = Math.pow((score - 1) / 9, 1.6);
+      const fontSize = (11 + t * 29).toFixed(1);
       // 좋은 맥락=Honey 계열(글자 대비를 위해 진하게 한 honey-ink), 나쁜 맥락=Blueberry
       const colorClass = k.sentiment === 'negative' ? 'text-blueberry' : 'text-honey-ink';
-      const weight = score >= 6 ? 'font-semibold' : 'font-medium';
+      const weight = score >= 8 ? 'font-bold' : score >= 5 ? 'font-semibold' : 'font-normal';
       return `<span class="${colorClass} ${weight}" style="font-size:${fontSize}px; line-height:1.2" title="중요도 ${score}/10">${escapeHtml(k.word)}</span>`;
     }).join(' ');
 
@@ -1190,7 +1193,7 @@ ${reviewsText}
     // 리뷰가 하나도 없으면 분석 영역 자체를 만들지 않는다(요구사항 7) —
     // loadAndRenderAnalysis도 호출하지 않음(아래).
     const analysisPlaceholder = result.reviews.length > 0
-      ? `<div id="review-modal-analysis" class="pb-5 mb-5 border-b border-wheat/60"></div>`
+      ? `<div id="review-modal-analysis" class="pt-5 pb-5 mb-5 border-b border-wheat/60"></div>`
       : '';
 
     reviewModalScroll.innerHTML = `
