@@ -245,20 +245,27 @@
   // "CE7=카페" 처럼 굵은 단위만 지원하고 한식/중식/일식 같은 세부
   // 업종은 구분해주지 않는다. 그래서 세부 업종 칩은 카카오
   // keyword.json에 업종 키워드를 얹어 흉내낸다.
-  // 업종 키워드가 없는 칩("전체", "카페")은 입력창이 비어 있어도
-  // 동작해야 하므로, 이 경우에는 category.json(카테고리 검색) +
-  // 현재 위치 좌표를 사용한다.
+  // "전체"/"카페" 칩은 뺐다 — 둘 다 keyword 없이 category_group_code만으로
+  // 검색되는데(FD6/CE7), FD6는 "음식점" 대분류라 실제로는 편의점·마트 같은
+  // 비음식점이 섞여 나오고, CE7(카페)은 애초에 음식점이 아니라서 이 서비스
+  // 취지("맛집" 검색)와 안 맞는다는 피드백을 받았다. 나머지 칩은 전부
+  // keyword를 함께 걸어 검색하므로 이런 문제가 없다.
   // ============================================================
   const categories = [
-    { id: 'all',      label: '전체',      groupCode: 'FD6', keyword: '' },
     { id: 'korean',   label: '한식',      groupCode: 'FD6', keyword: '한식' },
-    { id: 'cafe',     label: '카페',      groupCode: 'CE7', keyword: '' },
     { id: 'western',  label: '양식',      groupCode: 'FD6', keyword: '양식' },
     { id: 'chinese',  label: '중식',      groupCode: 'FD6', keyword: '중식' },
     { id: 'japanese', label: '일식',      groupCode: 'FD6', keyword: '일식' },
     { id: 'snack',    label: '분식',      groupCode: 'FD6', keyword: '분식' },
     { id: 'bar',      label: '술집·호프', groupCode: 'FD6', keyword: '술집' },
   ];
+
+  // 칩을 하나도 선택하지 않은 기본 상태(activeCategoryId === null)에 쓰는 값 —
+  // 예전 "전체" 칩과 동일하게 동작하지만(현재 위치 기준 음식점 검색, keyword
+  // 없음) 더 이상 칩으로 노출하지 않는다. index.html 히어로 검색(?q=)이 이
+  // 기본 상태로 들어오므로 keyword가 비어 있어야 검색어 앞에 엉뚱한 업종
+  // 단어가 섞이지 않는다.
+  const DEFAULT_CATEGORY = { id: null, groupCode: 'FD6', keyword: '' };
 
   // 위치 정보(geolocation)를 못 받을 때 쓰는 기본 좌표 — 서울시청
   const FALLBACK_COORD = { x: '126.9780', y: '37.5665' };
@@ -272,7 +279,7 @@
   let GEMINI_API_KEY = null;
   let apiKeyLoadAttempted = false;
 
-  let activeCategoryId = 'all';
+  let activeCategoryId = null;
   let currentPage = 1;
   let isEnd = true;
   let lastRequest = null; // 다음 페이지 요청 시 재사용
@@ -503,7 +510,7 @@
   // ============================================================
   async function runSearch(){
     const rawInput = searchInput.value.trim();
-    const cat = categories.find((c) => c.id === activeCategoryId) || categories[0];
+    const cat = categories.find((c) => c.id === activeCategoryId) || DEFAULT_CATEGORY;
     const combinedQuery = [cat.keyword, rawInput].filter(Boolean).join(' ').trim();
 
     hideLocationNotice();
@@ -515,7 +522,7 @@
     loadMoreBtn.classList.add('hidden');
 
     if (!combinedQuery) {
-      // "전체" 카테고리 + 빈 입력창 → 현재 위치 기준 카테고리 검색
+      // 칩 미선택(기본 상태) + 빈 입력창 → 현재 위치 기준 카테고리 검색
       resultStatus.textContent = '내 주변 맛집을 찾는 중이에요…';
       renderSkeletons();
       try {
